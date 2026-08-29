@@ -19,23 +19,46 @@ builder.Services.AddControllers();
 // DATABASE
 // =====================================================
 
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:DefaultConnection no está configurado."
+    );
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
+{
+    options.UseNpgsql(connectionString);
+});
 
 
 // =====================================================
 // CORS
 // =====================================================
 
+// Orígenes configurados desde appsettings o variables de entorno.
+//
+// Azure:
+// Cors__AllowedOrigins__0=https://tu-app.vercel.app
+//
+// Localhost se mantiene permitido para desarrollo.
+
+var configuredOrigins =
+    builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()
+    ?? Array.Empty<string>();
+
+var allowedOrigins = configuredOrigins
+    .Append("http://localhost:5173")
+    .Distinct()
+    .ToArray();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -55,15 +78,23 @@ builder.Services.AddScoped<ITenantContext, TenantContext>();
 // JWT
 // =====================================================
 
-var jwtKey = builder.Configuration["Jwt:Key"]
+var jwtKey =
+    builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException(
         "Jwt:Key no está configurado."
     );
 
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtIssuer =
+    builder.Configuration["Jwt:Issuer"]
+    ?? throw new InvalidOperationException(
+        "Jwt:Issuer no está configurado."
+    );
 
-var jwtAudience = builder.Configuration["Jwt:Audience"];
-
+var jwtAudience =
+    builder.Configuration["Jwt:Audience"]
+    ?? throw new InvalidOperationException(
+        "Jwt:Audience no está configurado."
+    );
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -73,24 +104,21 @@ builder.Services
             new TokenValidationParameters
             {
                 ValidateIssuer = true,
-
                 ValidateAudience = true,
-
                 ValidateLifetime = true,
-
                 ValidateIssuerSigningKey = true,
 
                 ValidIssuer = jwtIssuer,
-
                 ValidAudience = jwtAudience,
 
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(jwtKey)
-                    )
+                    ),
+
+                ClockSkew = TimeSpan.Zero
             };
     });
-
 
 builder.Services.AddAuthorization();
 
@@ -108,19 +136,13 @@ builder.Services.AddSwaggerGen(options =>
         new OpenApiSecurityScheme
         {
             Name = "Authorization",
-
             Type = SecuritySchemeType.Http,
-
             Scheme = "bearer",
-
             BearerFormat = "JWT",
-
             In = ParameterLocation.Header,
-
-            Description = "Ingresa el token JWT."
+            Description = "Ingresa únicamente el token JWT."
         }
     );
-
 
     options.AddSecurityRequirement(document =>
         new OpenApiSecurityRequirement
@@ -147,32 +169,31 @@ var app = builder.Build();
 // SWAGGER
 // =====================================================
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
+// Lo dejamos disponible también en Azure por ahora
+// para poder probar la API una vez desplegada.
+//
+// Más adelante podemos restringirlo solamente
+// a Development.
 
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+
+app.UseSwaggerUI();
 
 
 // =====================================================
 // MIDDLEWARE
 // =====================================================
 
-// IMPORTANTE:
-// No usamos HTTPS Redirection por ahora porque
-// estamos consumiendo la API local por HTTP.
-//
-// NO agregar:
-// app.UseHttpsRedirection();
-
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // CORS debe ejecutarse antes de Authentication y Authorization.
+
 app.UseCors("Frontend");
 
-
 app.UseAuthentication();
-
 
 app.UseAuthorization();
 
