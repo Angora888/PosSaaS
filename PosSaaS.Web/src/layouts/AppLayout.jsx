@@ -13,6 +13,7 @@ function AppLayout({ children }) {
 
   const puedeVerProductos = esAdmin || esSupervisor;
   const puedeVerInventario = esAdmin || esSupervisor;
+  const puedeVerReportes = esAdmin || esSupervisor;
   const puedeVerUsuarios = esAdmin;
   const puedeVerConfiguracion = esAdmin;
 
@@ -25,6 +26,7 @@ function AppLayout({ children }) {
     localStorage.removeItem("tenantId");
     localStorage.removeItem("sucursalId");
     localStorage.removeItem("comercio");
+    localStorage.removeItem("nombreComercial");
 
     navigate("/login", {
       replace: true,
@@ -119,6 +121,18 @@ function AppLayout({ children }) {
             <i className="bi bi-cash-stack"></i>
             <span>Cajas</span>
           </NavLink>
+
+          {puedeVerReportes && (
+            <NavLink
+              to="/reportes"
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "active" : ""}`
+              }
+            >
+              <i className="bi bi-bar-chart-line"></i>
+              <span>Reportes</span>
+            </NavLink>
+          )}
 
           {(puedeVerUsuarios || puedeVerConfiguracion) && (
             <div className="sidebar-separator"></div>
