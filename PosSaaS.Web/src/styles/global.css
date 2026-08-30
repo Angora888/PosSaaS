@@ -19,6 +19,7 @@ body {
     "Segoe UI",
     sans-serif;
 }
+
 .producto-pos {
   cursor: pointer;
   transition:
@@ -35,4 +36,48 @@ body {
 
 .producto-pos:active {
   transform: translateY(0);
+}
+
+/* Landing page POS preview: stack products and sale summary on phones. */
+@media (max-width: 575.98px) {
+  #inicio .col-lg-6:last-child .bg-white.rounded-4 > .p-4 {
+    padding: 1rem !important;
+  }
+
+  #inicio
+    .col-lg-6:last-child
+    .bg-white.rounded-4
+    > .p-4
+    > .row.g-3
+    > .col-8,
+  #inicio
+    .col-lg-6:last-child
+    .bg-white.rounded-4
+    > .p-4
+    > .row.g-3
+    > .col-4 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  #inicio
+    .col-lg-6:last-child
+    .bg-white.rounded-4
+    > .p-4
+    > .row.g-3
+    > .col-4
+    > .border {
+    height: auto !important;
+  }
+
+  #inicio
+    .col-lg-6:last-child
+    .bg-white.rounded-4
+    > .p-4
+    > .row.g-3
+    > .col-4
+    .fw-bold.d-flex {
+    gap: 1rem;
+  }
 }
