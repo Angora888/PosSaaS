@@ -15,6 +15,7 @@ import Ventas from "./pages/Ventas";
 import Cajas from "./pages/Cajas";
 import Configuracion from "./pages/Configuracion";
 import Usuarios from "./pages/Usuarios";
+import Reportes from "./pages/Reportes";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -130,6 +131,20 @@ function App() {
             ]}
           >
             <Cajas />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reportes"
+        element={
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+            ]}
+          >
+            <Reportes />
           </ProtectedRoute>
         }
       />
