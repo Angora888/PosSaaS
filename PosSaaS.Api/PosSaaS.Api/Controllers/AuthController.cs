@@ -113,6 +113,11 @@ namespace PosSaaS.Api.Controllers
                 new JwtSecurityTokenHandler()
                     .WriteToken(token);
 
+            var nombreComercial =
+                string.IsNullOrWhiteSpace(usuario.Tenant.NombreComercial)
+                    ? usuario.Tenant.Nombre
+                    : usuario.Tenant.NombreComercial;
+
             return Ok(new
             {
                 token = tokenString,
@@ -127,7 +132,8 @@ namespace PosSaaS.Api.Controllers
                     usuario.TenantId,
                     usuario.SucursalId,
 
-                    comercio = usuario.Tenant.Nombre
+                    comercio = usuario.Tenant.Nombre,
+                    nombreComercial
                 }
             });
         }
