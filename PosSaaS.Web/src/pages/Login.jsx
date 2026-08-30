@@ -86,6 +86,15 @@ function Login() {
         );
       }
 
+      if (usuario.nombreComercial) {
+        localStorage.setItem(
+          "nombreComercial",
+          usuario.nombreComercial
+        );
+      } else {
+        localStorage.removeItem("nombreComercial");
+      }
+
       navigate("/dashboard", {
         replace: true,
       });
