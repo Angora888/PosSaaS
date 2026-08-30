@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PosSaaS.Api.Data;
@@ -33,13 +33,52 @@ namespace PosSaaS.Api.Controllers
         [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerTodos()
         {
+            var tenantId = _tenantContext.TenantId;
+
+            var existenMetodos =
+                await _context.MetodosPago
+                    .AnyAsync(x => x.TenantId == tenantId);
+
+            // Compatibilidad con comercios creados antes de que existiera
+            // la configuración de métodos de pago. Si el tenant nunca ha
+            // tenido métodos, creamos los valores iniciales automáticamente.
+            // Si existen pero fueron desactivados por el Admin, se respetan.
+            if (!existenMetodos)
+            {
+                _context.MetodosPago.AddRange(
+                    new MetodoPago
+                    {
+                        TenantId = tenantId,
+                        Nombre = "Efectivo",
+                        Tipo = "EFECTIVO",
+                        AfectaCaja = true,
+                        Activo = true
+                    },
+                    new MetodoPago
+                    {
+                        TenantId = tenantId,
+                        Nombre = "Tarjeta",
+                        Tipo = "TARJETA",
+                        AfectaCaja = false,
+                        Activo = true
+                    },
+                    new MetodoPago
+                    {
+                        TenantId = tenantId,
+                        Nombre = "SINPE Móvil",
+                        Tipo = "TRANSFERENCIA",
+                        AfectaCaja = false,
+                        Activo = true
+                    }
+                );
+
+                await _context.SaveChangesAsync();
+            }
+
             var metodos =
                 await _context.MetodosPago
-                    .Where(x =>
-                        x.TenantId ==
-                            _tenantContext.TenantId)
-                    .OrderBy(x =>
-                        x.Nombre)
+                    .Where(x => x.TenantId == tenantId)
+                    .OrderBy(x => x.Nombre)
                     .Select(x => new
                     {
                         x.Id,
