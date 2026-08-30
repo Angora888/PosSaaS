@@ -24,73 +24,97 @@ namespace PosSaaS.Api.Controllers
             _tenantContext = tenantContext;
         }
 
+        // ============================================================
+        // LISTAR MÉTODOS DE PAGO
+        // Admin / Supervisor / Cajero
+        // ============================================================
+
         [HttpGet]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerTodos()
         {
-            var metodos = await _context.MetodosPago
-                .Where(x =>
-                    x.TenantId == _tenantContext.TenantId)
-                .OrderBy(x => x.Nombre)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.Nombre,
-                    x.Tipo,
-                    x.AfectaCaja,
-                    x.Activo
-                })
-                .ToListAsync();
+            var metodos =
+                await _context.MetodosPago
+                    .Where(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId)
+                    .OrderBy(x =>
+                        x.Nombre)
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.Nombre,
+                        x.Tipo,
+                        x.AfectaCaja,
+                        x.Activo
+                    })
+                    .ToListAsync();
 
             return Ok(metodos);
         }
 
+        // ============================================================
+        // CREAR MÉTODO DE PAGO
+        // Admin
+        // ============================================================
+
         [HttpPost]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Crear(
             MetodoPagoDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
+            {
                 return BadRequest(
                     "El nombre es obligatorio.");
+            }
 
             if (string.IsNullOrWhiteSpace(dto.Tipo))
+            {
                 return BadRequest(
                     "El tipo es obligatorio.");
+            }
 
-            var nombre = dto.Nombre.Trim();
+            var nombre =
+                dto.Nombre.Trim();
 
-            var tipo = dto.Tipo
-                .Trim()
-                .ToUpper();
+            var tipo =
+                dto.Tipo
+                    .Trim()
+                    .ToUpper();
 
-            var existe = await _context.MetodosPago
-                .AnyAsync(x =>
-                    x.TenantId ==
-                        _tenantContext.TenantId &&
-                    x.Nombre.ToLower() ==
-                        nombre.ToLower());
+            var existe =
+                await _context.MetodosPago
+                    .AnyAsync(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Nombre.ToLower() ==
+                            nombre.ToLower());
 
             if (existe)
+            {
                 return BadRequest(
                     "Ya existe un método de pago con ese nombre.");
+            }
 
-            var metodo = new MetodoPago
-            {
-                TenantId =
-                    _tenantContext.TenantId,
+            var metodo =
+                new MetodoPago
+                {
+                    TenantId =
+                        _tenantContext.TenantId,
 
-                Nombre =
-                    nombre,
+                    Nombre =
+                        nombre,
 
-                Tipo =
-                    tipo,
+                    Tipo =
+                        tipo,
 
-                AfectaCaja =
-                    dto.AfectaCaja,
+                    AfectaCaja =
+                        dto.AfectaCaja,
 
-                Activo =
-                    true
-            };
+                    Activo =
+                        true
+                };
 
             _context.MetodosPago.Add(metodo);
 
@@ -108,51 +132,70 @@ namespace PosSaaS.Api.Controllers
             });
         }
 
+        // ============================================================
+        // ACTUALIZAR MÉTODO DE PAGO
+        // Admin
+        // ============================================================
+
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Actualizar(
             int id,
             MetodoPagoDto dto)
         {
-            var metodo = await _context.MetodosPago
-                .FirstOrDefaultAsync(x =>
-                    x.Id == id &&
-                    x.TenantId ==
-                        _tenantContext.TenantId);
+            var metodo =
+                await _context.MetodosPago
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
 
             if (metodo == null)
+            {
                 return NotFound(
                     "Método de pago no encontrado.");
+            }
 
             if (string.IsNullOrWhiteSpace(dto.Nombre))
+            {
                 return BadRequest(
                     "El nombre es obligatorio.");
+            }
 
             if (string.IsNullOrWhiteSpace(dto.Tipo))
+            {
                 return BadRequest(
                     "El tipo es obligatorio.");
+            }
 
-            var nombre = dto.Nombre.Trim();
+            var nombre =
+                dto.Nombre.Trim();
 
-            var existe = await _context.MetodosPago
-                .AnyAsync(x =>
-                    x.Id != id &&
-                    x.TenantId ==
-                        _tenantContext.TenantId &&
-                    x.Nombre.ToLower() ==
-                        nombre.ToLower());
+            var tipo =
+                dto.Tipo
+                    .Trim()
+                    .ToUpper();
+
+            var existe =
+                await _context.MetodosPago
+                    .AnyAsync(x =>
+                        x.Id != id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Nombre.ToLower() ==
+                            nombre.ToLower());
 
             if (existe)
+            {
                 return BadRequest(
                     "Ya existe otro método de pago con ese nombre.");
+            }
 
             metodo.Nombre =
                 nombre;
 
             metodo.Tipo =
-                dto.Tipo
-                    .Trim()
-                    .ToUpper();
+                tipo;
 
             metodo.AfectaCaja =
                 dto.AfectaCaja;
@@ -166,31 +209,41 @@ namespace PosSaaS.Api.Controllers
             });
         }
 
+        // ============================================================
+        // ACTIVAR / DESACTIVAR MÉTODO DE PAGO
+        // Admin
+        // ============================================================
+
         [HttpPatch("{id:int}/estado")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CambiarEstado(
             int id,
             [FromQuery] bool activo)
         {
-            var metodo = await _context.MetodosPago
-                .FirstOrDefaultAsync(x =>
-                    x.Id == id &&
-                    x.TenantId ==
-                        _tenantContext.TenantId);
+            var metodo =
+                await _context.MetodosPago
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
 
             if (metodo == null)
+            {
                 return NotFound(
                     "Método de pago no encontrado.");
+            }
 
-            metodo.Activo = activo;
+            metodo.Activo =
+                activo;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensaje = activo
-                    ? "Método de pago activado."
-                    : "Método de pago desactivado."
+                mensaje =
+                    activo
+                        ? "Método de pago activado."
+                        : "Método de pago desactivado."
             });
         }
     }

@@ -36,30 +36,54 @@ function Login() {
         return;
       }
 
+      if (!data.usuario) {
+        setError("La API no devolvió la información del usuario.");
+        return;
+      }
+
+      const usuario = data.usuario;
+
+      // Token
       localStorage.setItem("token", data.token);
 
-      // Guardamos también información útil si la API
-      // la devuelve junto con el token.
-      if (data.usuarioId !== undefined) {
-        localStorage.setItem("usuarioId", data.usuarioId);
+      // Información del usuario
+      if (usuario.id !== undefined) {
+        localStorage.setItem("usuarioId", usuario.id);
       }
 
-      if (data.nombre) {
-        localStorage.setItem("nombre", data.nombre);
+      if (usuario.nombre) {
+        localStorage.setItem("nombre", usuario.nombre);
       }
 
-      if (data.rol) {
-        localStorage.setItem("rol", data.rol);
+      if (usuario.email) {
+        localStorage.setItem("email", usuario.email);
       }
 
-      if (data.tenantId !== undefined) {
-        localStorage.setItem("tenantId", data.tenantId);
+      if (usuario.rol) {
+        localStorage.setItem("rol", usuario.rol);
       }
 
-      if (data.sucursalId !== undefined && data.sucursalId !== null) {
-        localStorage.setItem("sucursalId", data.sucursalId);
+      if (usuario.tenantId !== undefined) {
+        localStorage.setItem("tenantId", usuario.tenantId);
+      }
+
+      if (
+        usuario.sucursalId !== undefined &&
+        usuario.sucursalId !== null
+      ) {
+        localStorage.setItem(
+          "sucursalId",
+          usuario.sucursalId
+        );
       } else {
         localStorage.removeItem("sucursalId");
+      }
+
+      if (usuario.comercio) {
+        localStorage.setItem(
+          "comercio",
+          usuario.comercio
+        );
       }
 
       navigate("/dashboard", {
@@ -72,7 +96,9 @@ function Login() {
         setError("Correo o contraseña incorrectos.");
       } else if (err.response?.data?.mensaje) {
         setError(err.response.data.mensaje);
-      } else if (typeof err.response?.data === "string") {
+      } else if (
+        typeof err.response?.data === "string"
+      ) {
         setError(err.response.data);
       } else if (!err.response) {
         setError(

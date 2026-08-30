@@ -3,8 +3,18 @@ import AppLayout from "../layouts/AppLayout";
 import api from "../services/api";
 
 function Productos() {
+  const rol = localStorage.getItem("rol") || "Usuario";
+  const esAdmin = rol === "Admin";
+
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [todasCategorias, setTodasCategorias] = useState([]);
+
+  const [mostrarModalCategorias, setMostrarModalCategorias] = useState(false);
+  const [categoriaEditando, setCategoriaEditando] = useState(null);
+  const [nombreCategoria, setNombreCategoria] = useState("");
+  const [guardandoCategoria, setGuardandoCategoria] = useState(false);
+  const [errorCategoria, setErrorCategoria] = useState("");
 
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -44,8 +54,10 @@ function Productos() {
 
       setProductos(productosResponse.data);
 
+      setTodasCategorias(categoriasResponse.data || []);
+
       setCategorias(
-        categoriasResponse.data.filter(
+        (categoriasResponse.data || []).filter(
           (categoria) => categoria.activa
         )
       );
@@ -59,6 +71,37 @@ function Productos() {
       setCargando(false);
     }
   };
+
+  const categoriasFormulario = useMemo(() => {
+    if (!productoEditando) {
+      return categorias;
+    }
+
+    const categoriaIdActual = Number(
+      productoEditando.categoriaId ??
+        productoEditando.categoria?.id ??
+        0
+    );
+
+    const categoriaActual = todasCategorias.find(
+      (categoria) =>
+        Number(categoria.id) === categoriaIdActual
+    );
+
+    if (
+      categoriaActual &&
+      !categorias.some(
+        (categoria) =>
+          Number(categoria.id) === categoriaIdActual
+      )
+    ) {
+      return [...categorias, categoriaActual].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre)
+      );
+    }
+
+    return categorias;
+  }, [categorias, todasCategorias, productoEditando]);
 
   const productosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -117,7 +160,9 @@ function Productos() {
 
     setFormulario({
       categoriaId: String(
-        producto.categoriaId || ""
+        producto.categoriaId ??
+          producto.categoria?.id ??
+          ""
       ),
       nombre: producto.nombre || "",
       descripcion: producto.descripcion || "",
@@ -326,6 +371,125 @@ function Productos() {
     }
   };
 
+  const abrirCategorias = () => {
+    setCategoriaEditando(null);
+    setNombreCategoria("");
+    setErrorCategoria("");
+    setMostrarModalCategorias(true);
+  };
+
+  const cerrarCategorias = () => {
+    if (guardandoCategoria) return;
+
+    setMostrarModalCategorias(false);
+    setCategoriaEditando(null);
+    setNombreCategoria("");
+    setErrorCategoria("");
+  };
+
+  const editarCategoria = (categoria) => {
+    setCategoriaEditando(categoria);
+    setNombreCategoria(categoria.nombre || "");
+    setErrorCategoria("");
+  };
+
+  const cancelarEdicionCategoria = () => {
+    setCategoriaEditando(null);
+    setNombreCategoria("");
+    setErrorCategoria("");
+  };
+
+  const guardarCategoria = async (e) => {
+    e.preventDefault();
+
+    const nombre = nombreCategoria.trim();
+
+    if (!nombre) {
+      setErrorCategoria("El nombre de la categoría es obligatorio.");
+      return;
+    }
+
+    try {
+      setGuardandoCategoria(true);
+      setErrorCategoria("");
+
+      if (categoriaEditando) {
+        await api.put(
+          `/Categorias/${categoriaEditando.id}`,
+          { nombre }
+        );
+
+        setMensaje("Categoría actualizada correctamente.");
+      } else {
+        await api.post("/Categorias", { nombre });
+        setMensaje("Categoría creada correctamente.");
+      }
+
+      setCategoriaEditando(null);
+      setNombreCategoria("");
+
+      await cargarDatos();
+    } catch (err) {
+      console.error(err);
+
+      const data = err.response?.data;
+
+      setErrorCategoria(
+        typeof data === "string"
+          ? data
+          : data?.message ||
+            data?.title ||
+            "No fue posible guardar la categoría."
+      );
+    } finally {
+      setGuardandoCategoria(false);
+    }
+  };
+
+  const cambiarEstadoCategoria = async (categoria) => {
+    try {
+      setGuardandoCategoria(true);
+      setErrorCategoria("");
+
+      await api.patch(
+        `/Categorias/${categoria.id}/estado`,
+        null,
+        {
+          params: {
+            activa: !categoria.activa,
+          },
+        }
+      );
+
+      setMensaje(
+        categoria.activa
+          ? "Categoría desactivada correctamente."
+          : "Categoría activada correctamente."
+      );
+
+      if (
+        categoriaEditando &&
+        categoriaEditando.id === categoria.id
+      ) {
+        cancelarEdicionCategoria();
+      }
+
+      await cargarDatos();
+    } catch (err) {
+      console.error(err);
+
+      const data = err.response?.data;
+
+      setErrorCategoria(
+        typeof data === "string"
+          ? data
+          : "No fue posible cambiar el estado de la categoría."
+      );
+    } finally {
+      setGuardandoCategoria(false);
+    }
+  };
+
   const obtenerCategoria = (producto) => {
     if (producto.categoriaNombre) {
       return producto.categoriaNombre;
@@ -369,14 +533,27 @@ function Productos() {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-dark"
-          onClick={abrirNuevoProducto}
-        >
-          <i className="bi bi-plus-lg me-2"></i>
-          Nuevo producto
-        </button>
+        {esAdmin && (
+          <div className="d-flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-dark"
+              onClick={abrirCategorias}
+            >
+              <i className="bi bi-tags me-2"></i>
+              Categorías
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-dark"
+              onClick={abrirNuevoProducto}
+            >
+              <i className="bi bi-plus-lg me-2"></i>
+              Nuevo producto
+            </button>
+          </div>
+        )}
       </div>
 
       {mensaje && (
@@ -493,9 +670,11 @@ function Productos() {
                     <th className="text-center">
                       Estado
                     </th>
-                    <th className="text-end">
-                      Acciones
-                    </th>
+                    {esAdmin && (
+                      <th className="text-end">
+                        Acciones
+                      </th>
+                    )}
                   </tr>
                 </thead>
 
@@ -586,49 +765,51 @@ function Productos() {
                           </span>
                         </td>
 
-                        <td className="text-end">
-                          <div className="btn-group">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-secondary"
-                              title="Editar"
-                              onClick={() =>
-                                abrirEditarProducto(
-                                  producto
-                                )
-                              }
-                            >
-                              <i className="bi bi-pencil"></i>
-                            </button>
+                        {esAdmin && (
+                          <td className="text-end">
+                            <div className="btn-group">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary"
+                                title="Editar"
+                                onClick={() =>
+                                  abrirEditarProducto(
+                                    producto
+                                  )
+                                }
+                              >
+                                <i className="bi bi-pencil"></i>
+                              </button>
 
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${
-                                producto.activo
-                                  ? "btn-outline-danger"
-                                  : "btn-outline-success"
-                              }`}
-                              title={
-                                producto.activo
-                                  ? "Desactivar"
-                                  : "Activar"
-                              }
-                              onClick={() =>
-                                cambiarEstado(
-                                  producto
-                                )
-                              }
-                            >
-                              <i
-                                className={`bi ${
+                              <button
+                                type="button"
+                                className={`btn btn-sm ${
                                   producto.activo
-                                    ? "bi-slash-circle"
-                                    : "bi-check-circle"
+                                    ? "btn-outline-danger"
+                                    : "btn-outline-success"
                                 }`}
-                              ></i>
-                            </button>
-                          </div>
-                        </td>
+                                title={
+                                  producto.activo
+                                    ? "Desactivar"
+                                    : "Activar"
+                                }
+                                onClick={() =>
+                                  cambiarEstado(
+                                    producto
+                                  )
+                                }
+                              >
+                                <i
+                                  className={`bi ${
+                                    producto.activo
+                                      ? "bi-slash-circle"
+                                      : "bi-check-circle"
+                                  }`}
+                                ></i>
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     )
                   )}
@@ -639,7 +820,217 @@ function Productos() {
         </div>
       </div>
 
-      {mostrarModal && (
+      {esAdmin && mostrarModalCategorias && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+              <div className="modal-content border-0 shadow">
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title fw-bold">
+                      Categorías
+                    </h5>
+                    <small className="text-secondary">
+                      Administra las categorías disponibles para tus productos.
+                    </small>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={cerrarCategorias}
+                    disabled={guardandoCategoria}
+                  />
+                </div>
+
+                <div className="modal-body p-4">
+                  {errorCategoria && (
+                    <div className="alert alert-danger">
+                      <i className="bi bi-exclamation-triangle me-2"></i>
+                      {errorCategoria}
+                    </div>
+                  )}
+
+                  <form
+                    onSubmit={guardarCategoria}
+                    className="card border-0 bg-light mb-4"
+                  >
+                    <div className="card-body">
+                      <label className="form-label fw-semibold">
+                        {categoriaEditando
+                          ? "Editar categoría"
+                          : "Nueva categoría"}
+                      </label>
+
+                      <div className="d-flex flex-column flex-md-row gap-2">
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Ej. Bebidas, Alimentos, Servicios..."
+                          value={nombreCategoria}
+                          onChange={(e) =>
+                            setNombreCategoria(e.target.value)
+                          }
+                          disabled={guardandoCategoria}
+                          autoFocus
+                        />
+
+                        <button
+                          type="submit"
+                          className="btn btn-dark px-4"
+                          disabled={guardandoCategoria}
+                        >
+                          {guardandoCategoria ? (
+                            <span className="spinner-border spinner-border-sm" />
+                          ) : categoriaEditando ? (
+                            <>
+                              <i className="bi bi-check-lg me-2"></i>
+                              Guardar
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-plus-lg me-2"></i>
+                              Agregar
+                            </>
+                          )}
+                        </button>
+
+                        {categoriaEditando && (
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary"
+                            onClick={cancelarEdicionCategoria}
+                            disabled={guardandoCategoria}
+                          >
+                            Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </form>
+
+                  {todasCategorias.length === 0 ? (
+                    <div className="text-center py-4">
+                      <i className="bi bi-tags fs-1 text-secondary"></i>
+                      <h6 className="mt-3 mb-1">
+                        Todavía no hay categorías
+                      </h6>
+                      <p className="text-secondary mb-0">
+                        Agrega la primera categoría arriba.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>Categoría</th>
+                            <th className="text-center">
+                              Estado
+                            </th>
+                            <th className="text-end">
+                              Acciones
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {todasCategorias.map((categoria) => (
+                            <tr key={categoria.id}>
+                              <td className="fw-semibold">
+                                {categoria.nombre}
+                              </td>
+
+                              <td className="text-center">
+                                <span
+                                  className={`badge ${
+                                    categoria.activa
+                                      ? "text-bg-success"
+                                      : "text-bg-secondary"
+                                  }`}
+                                >
+                                  {categoria.activa
+                                    ? "Activa"
+                                    : "Inactiva"}
+                                </span>
+                              </td>
+
+                              <td className="text-end">
+                                <div className="btn-group">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary"
+                                    title="Editar"
+                                    onClick={() =>
+                                      editarCategoria(categoria)
+                                    }
+                                    disabled={guardandoCategoria}
+                                  >
+                                    <i className="bi bi-pencil"></i>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${
+                                      categoria.activa
+                                        ? "btn-outline-danger"
+                                        : "btn-outline-success"
+                                    }`}
+                                    title={
+                                      categoria.activa
+                                        ? "Desactivar"
+                                        : "Activar"
+                                    }
+                                    onClick={() =>
+                                      cambiarEstadoCategoria(
+                                        categoria
+                                      )
+                                    }
+                                    disabled={guardandoCategoria}
+                                  >
+                                    <i
+                                      className={`bi ${
+                                        categoria.activa
+                                          ? "bi-slash-circle"
+                                          : "bi-check-circle"
+                                      }`}
+                                    ></i>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={cerrarCategorias}
+                    disabled={guardandoCategoria}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="modal-backdrop fade show"
+            onClick={cerrarCategorias}
+          ></div>
+        </>
+      )}
+
+      {esAdmin && mostrarModal && (
         <>
           <div
             className="modal fade show d-block"
@@ -716,7 +1107,7 @@ function Productos() {
                             Seleccionar...
                           </option>
 
-                          {categorias.map(
+                          {categoriasFormulario.map(
                             (categoria) => (
                               <option
                                 key={

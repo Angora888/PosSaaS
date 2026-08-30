@@ -24,63 +24,126 @@ namespace PosSaaS.Api.Controllers
             _tenantContext = tenantContext;
         }
 
+        // ============================================================
+        // LISTAR CAJAS
+        //
+        // Admin sin sucursal:
+        //     Todas las cajas del Tenant.
+        //
+        // Usuario con SucursalId:
+        //     Solamente cajas de su sucursal.
+        // ============================================================
+
         [HttpGet]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerTodas()
         {
-            var cajas = await _context.Cajas
-                .Where(x =>
-                    x.TenantId == _tenantContext.TenantId)
-                .OrderBy(x => x.Sucursal.Nombre)
-                .ThenBy(x => x.Nombre)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.Nombre,
-                    x.Activa,
-                    x.SucursalId,
-                    sucursal = x.Sucursal.Nombre
-                })
-                .ToListAsync();
+            var query =
+                _context.Cajas
+                    .Where(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId);
+
+            if (_tenantContext.SucursalId.HasValue)
+            {
+                query = query.Where(x =>
+                    x.SucursalId ==
+                        _tenantContext.SucursalId.Value);
+            }
+
+            var cajas =
+                await query
+                    .OrderBy(x =>
+                        x.Sucursal.Nombre)
+                    .ThenBy(x =>
+                        x.Nombre)
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.Nombre,
+                        x.Activa,
+                        x.SucursalId,
+
+                        sucursal =
+                            x.Sucursal.Nombre
+                    })
+                    .ToListAsync();
 
             return Ok(cajas);
         }
 
+        // ============================================================
+        // CREAR CAJA
+        // Admin / Supervisor
+        //
+        // Supervisor con SucursalId:
+        // solamente puede crear cajas en su sucursal.
+        // ============================================================
+
         [HttpPost]
         [Authorize(Roles = "Admin,Supervisor")]
-        public async Task<IActionResult> Crear(CajaDto dto)
+        public async Task<IActionResult> Crear(
+            CajaDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
+            {
                 return BadRequest(
                     "El nombre de la caja es obligatorio.");
+            }
+
+            if (!PuedeAccederSucursal(dto.SucursalId))
+            {
+                return Forbid();
+            }
 
             var sucursalExiste =
-                await _context.Sucursales.AnyAsync(x =>
-                    x.Id == dto.SucursalId &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.Activa);
+                await _context.Sucursales
+                    .AnyAsync(x =>
+                        x.Id == dto.SucursalId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Activa);
 
             if (!sucursalExiste)
+            {
                 return BadRequest(
                     "La sucursal no existe o está inactiva.");
+            }
 
-            var nombre = dto.Nombre.Trim();
+            var nombre =
+                dto.Nombre.Trim();
 
-            var existe = await _context.Cajas.AnyAsync(x =>
-                x.TenantId == _tenantContext.TenantId &&
-                x.SucursalId == dto.SucursalId &&
-                x.Nombre.ToLower() == nombre.ToLower());
+            var existe =
+                await _context.Cajas
+                    .AnyAsync(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.SucursalId ==
+                            dto.SucursalId &&
+                        x.Nombre.ToLower() ==
+                            nombre.ToLower());
 
             if (existe)
+            {
                 return BadRequest(
                     "Ya existe una caja con ese nombre.");
+            }
 
-            var caja = new Caja
-            {
-                TenantId = _tenantContext.TenantId,
-                SucursalId = dto.SucursalId,
-                Nombre = nombre,
-                Activa = true
-            };
+            var caja =
+                new Caja
+                {
+                    TenantId =
+                        _tenantContext.TenantId,
+
+                    SucursalId =
+                        dto.SucursalId,
+
+                    Nombre =
+                        nombre,
+
+                    Activa =
+                        true
+                };
 
             _context.Cajas.Add(caja);
 
@@ -88,88 +151,137 @@ namespace PosSaaS.Api.Controllers
 
             return Ok(new
             {
-                mensaje = "Caja creada correctamente.",
+                mensaje =
+                    "Caja creada correctamente.",
+
                 caja.Id,
                 caja.Nombre
             });
         }
 
+        // ============================================================
+        // RESUMEN DE SESIÓN
+        //
+        // La sesión debe pertenecer al Tenant y a una sucursal
+        // permitida para el usuario.
+        // ============================================================
+
         [HttpGet("sesion/{sesionId:long}/resumen")]
-        public async Task<IActionResult> ObtenerResumenSesion(long sesionId)
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
+        public async Task<IActionResult> ObtenerResumenSesion(
+            long sesionId)
         {
-            var sesion = await _context.CajaSesiones
-                .Where(x =>
-                    x.Id == sesionId &&
-                    x.TenantId == _tenantContext.TenantId)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.Estado,
-                    x.MontoApertura,
-                    x.MontoCierre,
-                    x.MontoEsperado,
-                    x.Diferencia,
-                    x.FechaApertura,
-                    x.FechaCierre,
+            var query =
+                _context.CajaSesiones
+                    .Where(x =>
+                        x.Id == sesionId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
 
-                    caja = x.Caja.Nombre,
-                    sucursal = x.Caja.Sucursal.Nombre,
+            if (_tenantContext.SucursalId.HasValue)
+            {
+                query = query.Where(x =>
+                    x.Caja.SucursalId ==
+                        _tenantContext.SucursalId.Value);
+            }
 
-                    usuarioApertura =
-                        x.UsuarioApertura.Nombre,
+            var sesion =
+                await query
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.Estado,
+                        x.MontoApertura,
+                        x.MontoCierre,
+                        x.MontoEsperado,
+                        x.Diferencia,
+                        x.FechaApertura,
+                        x.FechaCierre,
 
-                    usuarioCierre =
-                        x.UsuarioCierre != null
-                            ? x.UsuarioCierre.Nombre
-                            : null
-                })
-                .FirstOrDefaultAsync();
+                        caja =
+                            x.Caja.Nombre,
+
+                        sucursal =
+                            x.Caja.Sucursal.Nombre,
+
+                        usuarioApertura =
+                            x.UsuarioApertura.Nombre,
+
+                        usuarioCierre =
+                            x.UsuarioCierre != null
+                                ? x.UsuarioCierre.Nombre
+                                : null
+                    })
+                    .FirstOrDefaultAsync();
 
             if (sesion == null)
-                return NotFound("Sesión de caja no encontrada.");
+            {
+                return NotFound(
+                    "Sesión de caja no encontrada.");
+            }
 
-            var movimientos = await _context.MovimientosCaja
-                .Where(x =>
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.CajaSesionId == sesionId)
-                .OrderBy(x => x.Fecha)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.Tipo,
-                    x.Monto,
-                    x.Referencia,
-                    x.Observacion,
-                    x.Fecha,
-                    usuario = x.Usuario.Nombre
-                })
-                .ToListAsync();
+            var movimientos =
+                await _context.MovimientosCaja
+                    .Where(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.CajaSesionId ==
+                            sesionId)
+                    .OrderBy(x =>
+                        x.Fecha)
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.Tipo,
+                        x.Monto,
+                        x.Referencia,
+                        x.Observacion,
+                        x.Fecha,
+
+                        usuario =
+                            x.Usuario.Nombre
+                    })
+                    .ToListAsync();
 
             var totalMovimientos =
-                movimientos.Sum(x => x.Monto);
+                movimientos.Sum(x =>
+                    x.Monto);
 
             var ventasEfectivo =
                 movimientos
-                    .Where(x => x.Tipo == "VENTA_EFECTIVO")
-                    .Sum(x => x.Monto);
+                    .Where(x =>
+                        x.Tipo ==
+                            "VENTA_EFECTIVO")
+                    .Sum(x =>
+                        x.Monto);
 
             var ingresosManuales =
                 movimientos
-                    .Where(x => x.Tipo == "INGRESO_MANUAL")
-                    .Sum(x => x.Monto);
+                    .Where(x =>
+                        x.Tipo ==
+                            "INGRESO_MANUAL")
+                    .Sum(x =>
+                        x.Monto);
 
             var retiros =
                 movimientos
-                    .Where(x => x.Tipo == "RETIRO")
-                    .Sum(x => x.Monto);
+                    .Where(x =>
+                        x.Tipo ==
+                            "RETIRO")
+                    .Sum(x =>
+                        x.Monto);
 
             var devoluciones =
                 movimientos
-                    .Where(x => x.Tipo == "DEVOLUCION")
-                    .Sum(x => x.Monto);
+                    .Where(x =>
+                        x.Tipo ==
+                            "DEVOLUCION")
+                    .Sum(x =>
+                        x.Monto);
 
             var esperadoActual =
-                sesion.MontoApertura + totalMovimientos;
+                sesion.MontoApertura +
+                totalMovimientos;
 
             return Ok(new
             {
@@ -198,47 +310,81 @@ namespace PosSaaS.Api.Controllers
             });
         }
 
+        // ============================================================
+        // INGRESO MANUAL
+        // Admin / Supervisor / Cajero
+        // ============================================================
+
         [HttpPost("{sesionId:long}/ingreso")]
         [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> RegistrarIngreso(
-    long sesionId,
-    MovimientoCajaDto dto)
+            long sesionId,
+            MovimientoCajaDto dto)
         {
             if (dto.Monto <= 0)
+            {
                 return BadRequest(
                     "El monto debe ser mayor que cero.");
+            }
 
-            var sesion = await _context.CajaSesiones
-                .FirstOrDefaultAsync(x =>
-                    x.Id == sesionId &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.Estado == "ABIERTA");
+            var sesion =
+                await _context.CajaSesiones
+                    .Include(x => x.Caja)
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == sesionId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Estado ==
+                            "ABIERTA");
 
             if (sesion == null)
+            {
                 return BadRequest(
                     "La sesión de caja no existe o está cerrada.");
+            }
 
-            var movimiento = new MovimientoCaja
+            if (!PuedeAccederSucursal(
+                sesion.Caja.SucursalId))
             {
-                TenantId = _tenantContext.TenantId,
-                CajaSesionId = sesion.Id,
-                UsuarioId = _tenantContext.UsuarioId,
+                return Forbid();
+            }
 
-                Tipo = "INGRESO_MANUAL",
+            var movimiento =
+                new MovimientoCaja
+                {
+                    TenantId =
+                        _tenantContext.TenantId,
 
-                Monto = dto.Monto,
+                    CajaSesionId =
+                        sesion.Id,
 
-                Referencia =
-                    dto.Referencia?.Trim(),
+                    UsuarioId =
+                        _tenantContext.UsuarioId,
 
-                Observacion =
-                    dto.Observacion?.Trim(),
+                    Tipo =
+                        "INGRESO_MANUAL",
 
-                Fecha =
-                    DateTime.UtcNow
-            };
+                    Monto =
+                        dto.Monto,
 
-            _context.MovimientosCaja.Add(movimiento);
+                    Referencia =
+                        string.IsNullOrWhiteSpace(
+                            dto.Referencia)
+                            ? null
+                            : dto.Referencia.Trim(),
+
+                    Observacion =
+                        string.IsNullOrWhiteSpace(
+                            dto.Observacion)
+                            ? null
+                            : dto.Observacion.Trim(),
+
+                    Fecha =
+                        DateTime.UtcNow
+                };
+
+            _context.MovimientosCaja
+                .Add(movimiento);
 
             await _context.SaveChangesAsync();
 
@@ -252,25 +398,44 @@ namespace PosSaaS.Api.Controllers
             });
         }
 
+        // ============================================================
+        // RETIRO
+        // Admin / Supervisor / Cajero
+        // ============================================================
+
         [HttpPost("{sesionId:long}/retiro")]
         [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> RegistrarRetiro(
-    long sesionId,
-    MovimientoCajaDto dto)
+            long sesionId,
+            MovimientoCajaDto dto)
         {
             if (dto.Monto <= 0)
+            {
                 return BadRequest(
                     "El monto debe ser mayor que cero.");
+            }
 
-            var sesion = await _context.CajaSesiones
-                .FirstOrDefaultAsync(x =>
-                    x.Id == sesionId &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.Estado == "ABIERTA");
+            var sesion =
+                await _context.CajaSesiones
+                    .Include(x => x.Caja)
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == sesionId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Estado ==
+                            "ABIERTA");
 
             if (sesion == null)
+            {
                 return BadRequest(
                     "La sesión de caja no existe o está cerrada.");
+            }
+
+            if (!PuedeAccederSucursal(
+                sesion.Caja.SucursalId))
+            {
+                return Forbid();
+            }
 
             var totalMovimientos =
                 await _context.MovimientosCaja
@@ -299,29 +464,43 @@ namespace PosSaaS.Api.Controllers
                 });
             }
 
-            var movimiento = new MovimientoCaja
-            {
-                TenantId = _tenantContext.TenantId,
-                CajaSesionId = sesion.Id,
-                UsuarioId = _tenantContext.UsuarioId,
+            var movimiento =
+                new MovimientoCaja
+                {
+                    TenantId =
+                        _tenantContext.TenantId,
 
-                Tipo = "RETIRO",
+                    CajaSesionId =
+                        sesion.Id,
 
-                // IMPORTANTE:
-                // los retiros se almacenan negativos.
-                Monto = -dto.Monto,
+                    UsuarioId =
+                        _tenantContext.UsuarioId,
 
-                Referencia =
-                    dto.Referencia?.Trim(),
+                    Tipo =
+                        "RETIRO",
 
-                Observacion =
-                    dto.Observacion?.Trim(),
+                    // Los retiros se almacenan negativos.
+                    Monto =
+                        -dto.Monto,
 
-                Fecha =
-                    DateTime.UtcNow
-            };
+                    Referencia =
+                        string.IsNullOrWhiteSpace(
+                            dto.Referencia)
+                            ? null
+                            : dto.Referencia.Trim(),
 
-            _context.MovimientosCaja.Add(movimiento);
+                    Observacion =
+                        string.IsNullOrWhiteSpace(
+                            dto.Observacion)
+                            ? null
+                            : dto.Observacion.Trim(),
+
+                    Fecha =
+                        DateTime.UtcNow
+                };
+
+            _context.MovimientosCaja
+                .Add(movimiento);
 
             await _context.SaveChangesAsync();
 
@@ -334,66 +513,103 @@ namespace PosSaaS.Api.Controllers
                     dto.Monto,
 
                 efectivoEsperado =
-                    efectivoEsperado - dto.Monto
+                    efectivoEsperado -
+                    dto.Monto
             });
         }
 
+        // ============================================================
+        // ABRIR CAJA
+        // Admin / Supervisor / Cajero
+        //
+        // Usuario con sucursal:
+        // solamente puede abrir cajas de su sucursal.
+        // ============================================================
+
         [HttpPost("abrir")]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> Abrir(
             AbrirCajaDto dto)
         {
             if (dto.MontoApertura < 0)
+            {
                 return BadRequest(
                     "El monto de apertura no puede ser negativo.");
+            }
 
-            var caja = await _context.Cajas
-                .FirstOrDefaultAsync(x =>
-                    x.Id == dto.CajaId &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.Activa);
+            var caja =
+                await _context.Cajas
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.CajaId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Activa);
 
             if (caja == null)
+            {
                 return BadRequest(
                     "La caja no existe o está inactiva.");
+            }
+
+            if (!PuedeAccederSucursal(
+                caja.SucursalId))
+            {
+                return Forbid();
+            }
 
             var yaEstaAbierta =
-                await _context.CajaSesiones.AnyAsync(x =>
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.CajaId == dto.CajaId &&
-                    x.Estado == "ABIERTA");
+                await _context.CajaSesiones
+                    .AnyAsync(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.CajaId ==
+                            dto.CajaId &&
+                        x.Estado ==
+                            "ABIERTA");
 
             if (yaEstaAbierta)
+            {
                 return BadRequest(
                     "La caja ya tiene una sesión abierta.");
+            }
 
-            var sesion = new CajaSesion
-            {
-                TenantId = _tenantContext.TenantId,
-                CajaId = caja.Id,
+            var sesion =
+                new CajaSesion
+                {
+                    TenantId =
+                        _tenantContext.TenantId,
 
-                UsuarioAperturaId =
-                    _tenantContext.UsuarioId,
+                    CajaId =
+                        caja.Id,
 
-                MontoApertura =
-                    dto.MontoApertura,
+                    UsuarioAperturaId =
+                        _tenantContext.UsuarioId,
 
-                FechaApertura =
-                    DateTime.UtcNow,
+                    MontoApertura =
+                        dto.MontoApertura,
 
-                Estado = "ABIERTA"
-            };
+                    FechaApertura =
+                        DateTime.UtcNow,
 
-            _context.CajaSesiones.Add(sesion);
+                    Estado =
+                        "ABIERTA"
+                };
+
+            _context.CajaSesiones
+                .Add(sesion);
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensaje = "Caja abierta correctamente.",
+                mensaje =
+                    "Caja abierta correctamente.",
 
-                cajaSesionId = sesion.Id,
+                cajaSesionId =
+                    sesion.Id,
 
-                caja = caja.Nombre,
+                caja =
+                    caja.Nombre,
 
                 montoApertura =
                     sesion.MontoApertura,
@@ -403,51 +619,104 @@ namespace PosSaaS.Api.Controllers
             });
         }
 
+        // ============================================================
+        // OBTENER SESIÓN ABIERTA
+        // ============================================================
+
         [HttpGet("sesion-abierta/{cajaId:int}")]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerSesionAbierta(
             int cajaId)
         {
-            var sesion = await _context.CajaSesiones
-                .Where(x =>
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.CajaId == cajaId &&
-                    x.Estado == "ABIERTA")
-                .Select(x => new
-                {
-                    x.Id,
-                    x.CajaId,
-                    caja = x.Caja.Nombre,
-                    x.MontoApertura,
-                    x.FechaApertura,
-                    x.UsuarioAperturaId
-                })
-                .FirstOrDefaultAsync();
+            var caja =
+                await _context.Cajas
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == cajaId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
+
+            if (caja == null)
+            {
+                return NotFound(
+                    "Caja no encontrada.");
+            }
+
+            if (!PuedeAccederSucursal(
+                caja.SucursalId))
+            {
+                return Forbid();
+            }
+
+            var sesion =
+                await _context.CajaSesiones
+                    .Where(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.CajaId ==
+                            cajaId &&
+                        x.Estado ==
+                            "ABIERTA")
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.CajaId,
+
+                        caja =
+                            x.Caja.Nombre,
+
+                        x.MontoApertura,
+                        x.FechaApertura,
+                        x.UsuarioAperturaId
+                    })
+                    .FirstOrDefaultAsync();
 
             if (sesion == null)
+            {
                 return NotFound(
                     "No existe una sesión abierta.");
+            }
 
             return Ok(sesion);
         }
 
+        // ============================================================
+        // CERRAR CAJA
+        // Admin / Supervisor / Cajero
+        // ============================================================
+
         [HttpPost("{sesionId:long}/cerrar")]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> Cerrar(
             long sesionId,
             CerrarCajaDto dto)
         {
             if (dto.MontoContado < 0)
+            {
                 return BadRequest(
                     "El monto contado no puede ser negativo.");
+            }
 
-            var sesion = await _context.CajaSesiones
-                .FirstOrDefaultAsync(x =>
-                    x.Id == sesionId &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.Estado == "ABIERTA");
+            var sesion =
+                await _context.CajaSesiones
+                    .Include(x => x.Caja)
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == sesionId &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.Estado ==
+                            "ABIERTA");
 
             if (sesion == null)
+            {
                 return NotFound(
                     "No existe una sesión abierta.");
+            }
+
+            if (!PuedeAccederSucursal(
+                sesion.Caja.SucursalId))
+            {
+                return Forbid();
+            }
 
             var movimientos =
                 await _context.MovimientosCaja
@@ -456,8 +725,9 @@ namespace PosSaaS.Api.Controllers
                             _tenantContext.TenantId &&
                         x.CajaSesionId ==
                             sesion.Id)
-                    .SumAsync(x => (decimal?)x.Monto)
-                    ?? 0;
+                    .SumAsync(x =>
+                        (decimal?)x.Monto)
+                ?? 0;
 
             var esperado =
                 sesion.MontoApertura +
@@ -503,6 +773,28 @@ namespace PosSaaS.Api.Controllers
                 diferencia =
                     sesion.Diferencia
             });
+        }
+
+        // ============================================================
+        // SEGURIDAD DE SUCURSAL
+        //
+        // Usuario sin SucursalId:
+        //     puede trabajar con cualquier sucursal del Tenant.
+        //
+        // Usuario con SucursalId:
+        //     solamente puede trabajar con esa sucursal.
+        // ============================================================
+
+        private bool PuedeAccederSucursal(
+            int sucursalId)
+        {
+            if (!_tenantContext.SucursalId.HasValue)
+            {
+                return true;
+            }
+
+            return _tenantContext.SucursalId.Value ==
+                   sucursalId;
         }
     }
 }

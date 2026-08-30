@@ -24,11 +24,18 @@ namespace PosSaaS.Api.Controllers
             _tenantContext = tenantContext;
         }
 
+        // =========================================================
+        // GET: api/Productos
+        // Admin / Supervisor / Cajero
+        // =========================================================
+
         [HttpGet]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerTodos()
         {
             var productos = await _context.Productos
-                .Where(x => x.TenantId == _tenantContext.TenantId)
+                .Where(x =>
+                    x.TenantId == _tenantContext.TenantId)
                 .OrderBy(x => x.Nombre)
                 .Select(x => new
                 {
@@ -53,7 +60,13 @@ namespace PosSaaS.Api.Controllers
             return Ok(productos);
         }
 
+        // =========================================================
+        // GET: api/Productos/5
+        // Admin / Supervisor / Cajero
+        // =========================================================
+
         [HttpGet("{id:int}")]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerPorId(int id)
         {
             var producto = await _context.Productos
@@ -78,15 +91,28 @@ namespace PosSaaS.Api.Controllers
                 .FirstOrDefaultAsync();
 
             if (producto == null)
-                return NotFound("Producto no encontrado.");
+                return NotFound(
+                    "Producto no encontrado.");
 
             return Ok(producto);
         }
 
+        // =========================================================
+        // GET: api/Productos/codigo/123456
+        // Admin / Supervisor / Cajero
+        // =========================================================
+
         [HttpGet("codigo/{codigo}")]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerPorCodigo(
             string codigo)
         {
+            if (string.IsNullOrWhiteSpace(codigo))
+                return BadRequest(
+                    "El código es obligatorio.");
+
+            codigo = codigo.Trim();
+
             var producto = await _context.Productos
                 .Where(x =>
                     x.TenantId == _tenantContext.TenantId &&
@@ -103,26 +129,37 @@ namespace PosSaaS.Api.Controllers
                 .FirstOrDefaultAsync();
 
             if (producto == null)
-                return NotFound("Producto no encontrado.");
+                return NotFound(
+                    "Producto no encontrado.");
 
             return Ok(producto);
         }
 
+        // =========================================================
+        // POST: api/Productos
+        // SOLO ADMIN
+        // =========================================================
+
         [HttpPost]
-        [Authorize(Roles = "Admin,Supervisor")]
-        public async Task<IActionResult> Crear(ProductoDto dto)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Crear(
+            ProductoDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
-                return BadRequest("El nombre es obligatorio.");
+                return BadRequest(
+                    "El nombre es obligatorio.");
 
             if (dto.Costo < 0)
-                return BadRequest("El costo no puede ser negativo.");
+                return BadRequest(
+                    "El costo no puede ser negativo.");
 
             if (dto.Precio < 0)
-                return BadRequest("El precio no puede ser negativo.");
+                return BadRequest(
+                    "El precio no puede ser negativo.");
 
             if (dto.ImpuestoPorcentaje < 0)
-                return BadRequest("El impuesto no puede ser negativo.");
+                return BadRequest(
+                    "El impuesto no puede ser negativo.");
 
             var categoriaExiste =
                 await _context.Categorias.AnyAsync(x =>
@@ -131,31 +168,39 @@ namespace PosSaaS.Api.Controllers
                     x.Activa);
 
             if (!categoriaExiste)
-                return BadRequest("La categoría no existe.");
+                return BadRequest(
+                    "La categoría no existe o se encuentra inactiva.");
 
-            var sku = string.IsNullOrWhiteSpace(dto.SKU)
-                ? null
-                : dto.SKU.Trim();
+            var sku =
+                string.IsNullOrWhiteSpace(dto.SKU)
+                    ? null
+                    : dto.SKU.Trim();
 
-            var codigo = string.IsNullOrWhiteSpace(dto.CodigoBarras)
-                ? null
-                : dto.CodigoBarras.Trim();
+            var codigo =
+                string.IsNullOrWhiteSpace(dto.CodigoBarras)
+                    ? null
+                    : dto.CodigoBarras.Trim();
 
             if (sku != null)
             {
-                var skuExiste = await _context.Productos.AnyAsync(x =>
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.SKU == sku);
+                var skuExiste =
+                    await _context.Productos.AnyAsync(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.SKU == sku);
 
                 if (skuExiste)
-                    return BadRequest("El SKU ya está registrado.");
+                    return BadRequest(
+                        "El SKU ya está registrado.");
             }
 
             if (codigo != null)
             {
-                var codigoExiste = await _context.Productos.AnyAsync(x =>
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.CodigoBarras == codigo);
+                var codigoExiste =
+                    await _context.Productos.AnyAsync(x =>
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.CodigoBarras == codigo);
 
                 if (codigoExiste)
                     return BadRequest(
@@ -164,16 +209,38 @@ namespace PosSaaS.Api.Controllers
 
             var producto = new Producto
             {
-                TenantId = _tenantContext.TenantId,
-                CategoriaId = dto.CategoriaId,
-                Nombre = dto.Nombre.Trim(),
-                Descripcion = dto.Descripcion?.Trim(),
-                SKU = sku,
-                CodigoBarras = codigo,
-                Costo = dto.Costo,
-                Precio = dto.Precio,
-                ImpuestoPorcentaje = dto.ImpuestoPorcentaje,
-                Activo = true
+                TenantId =
+                    _tenantContext.TenantId,
+
+                CategoriaId =
+                    dto.CategoriaId,
+
+                Nombre =
+                    dto.Nombre.Trim(),
+
+                Descripcion =
+                    string.IsNullOrWhiteSpace(
+                        dto.Descripcion)
+                        ? null
+                        : dto.Descripcion.Trim(),
+
+                SKU =
+                    sku,
+
+                CodigoBarras =
+                    codigo,
+
+                Costo =
+                    dto.Costo,
+
+                Precio =
+                    dto.Precio,
+
+                ImpuestoPorcentaje =
+                    dto.ImpuestoPorcentaje,
+
+                Activo =
+                    true
             };
 
             _context.Productos.Add(producto);
@@ -182,100 +249,162 @@ namespace PosSaaS.Api.Controllers
 
             return Ok(new
             {
-                mensaje = "Producto creado correctamente.",
+                mensaje =
+                    "Producto creado correctamente.",
+
                 producto.Id,
                 producto.Nombre
             });
         }
 
+        // =========================================================
+        // PUT: api/Productos/5
+        // SOLO ADMIN
+        // =========================================================
+
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Actualizar(
             int id,
             ProductoDto dto)
         {
-            var producto = await _context.Productos
-                .FirstOrDefaultAsync(x =>
-                    x.Id == id &&
-                    x.TenantId == _tenantContext.TenantId);
+            var producto =
+                await _context.Productos
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
 
             if (producto == null)
-                return NotFound("Producto no encontrado.");
+                return NotFound(
+                    "Producto no encontrado.");
 
             if (string.IsNullOrWhiteSpace(dto.Nombre))
-                return BadRequest("El nombre es obligatorio.");
+                return BadRequest(
+                    "El nombre es obligatorio.");
+
+            if (dto.Costo < 0)
+                return BadRequest(
+                    "El costo no puede ser negativo.");
+
+            if (dto.Precio < 0)
+                return BadRequest(
+                    "El precio no puede ser negativo.");
+
+            if (dto.ImpuestoPorcentaje < 0)
+                return BadRequest(
+                    "El impuesto no puede ser negativo.");
 
             var categoriaExiste =
                 await _context.Categorias.AnyAsync(x =>
                     x.Id == dto.CategoriaId &&
-                    x.TenantId == _tenantContext.TenantId);
+                    x.TenantId ==
+                        _tenantContext.TenantId &&
+                    x.Activa);
 
             if (!categoriaExiste)
-                return BadRequest("La categoría no existe.");
+                return BadRequest(
+                    "La categoría no existe o se encuentra inactiva.");
 
-            var sku = string.IsNullOrWhiteSpace(dto.SKU)
-                ? null
-                : dto.SKU.Trim();
+            var sku =
+                string.IsNullOrWhiteSpace(dto.SKU)
+                    ? null
+                    : dto.SKU.Trim();
 
-            var codigo = string.IsNullOrWhiteSpace(dto.CodigoBarras)
-                ? null
-                : dto.CodigoBarras.Trim();
+            var codigo =
+                string.IsNullOrWhiteSpace(
+                    dto.CodigoBarras)
+                    ? null
+                    : dto.CodigoBarras.Trim();
 
             if (sku != null)
             {
-                var existe = await _context.Productos.AnyAsync(x =>
-                    x.Id != id &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.SKU == sku);
+                var existe =
+                    await _context.Productos.AnyAsync(x =>
+                        x.Id != id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.SKU == sku);
 
                 if (existe)
-                    return BadRequest("El SKU ya está registrado.");
+                    return BadRequest(
+                        "El SKU ya está registrado.");
             }
 
             if (codigo != null)
             {
-                var existe = await _context.Productos.AnyAsync(x =>
-                    x.Id != id &&
-                    x.TenantId == _tenantContext.TenantId &&
-                    x.CodigoBarras == codigo);
+                var existe =
+                    await _context.Productos.AnyAsync(x =>
+                        x.Id != id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId &&
+                        x.CodigoBarras == codigo);
 
                 if (existe)
                     return BadRequest(
                         "El código de barras ya está registrado.");
             }
 
-            producto.CategoriaId = dto.CategoriaId;
-            producto.Nombre = dto.Nombre.Trim();
-            producto.Descripcion = dto.Descripcion?.Trim();
-            producto.SKU = sku;
-            producto.CodigoBarras = codigo;
-            producto.Costo = dto.Costo;
-            producto.Precio = dto.Precio;
-            producto.ImpuestoPorcentaje = dto.ImpuestoPorcentaje;
+            producto.CategoriaId =
+                dto.CategoriaId;
+
+            producto.Nombre =
+                dto.Nombre.Trim();
+
+            producto.Descripcion =
+                string.IsNullOrWhiteSpace(
+                    dto.Descripcion)
+                    ? null
+                    : dto.Descripcion.Trim();
+
+            producto.SKU =
+                sku;
+
+            producto.CodigoBarras =
+                codigo;
+
+            producto.Costo =
+                dto.Costo;
+
+            producto.Precio =
+                dto.Precio;
+
+            producto.ImpuestoPorcentaje =
+                dto.ImpuestoPorcentaje;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensaje = "Producto actualizado correctamente."
+                mensaje =
+                    "Producto actualizado correctamente."
             });
         }
 
+        // =========================================================
+        // PATCH: api/Productos/5/estado?activo=false
+        // SOLO ADMIN
+        // =========================================================
+
         [HttpPatch("{id:int}/estado")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CambiarEstado(
             int id,
             [FromQuery] bool activo)
         {
-            var producto = await _context.Productos
-                .FirstOrDefaultAsync(x =>
-                    x.Id == id &&
-                    x.TenantId == _tenantContext.TenantId);
+            var producto =
+                await _context.Productos
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
 
             if (producto == null)
-                return NotFound("Producto no encontrado.");
+                return NotFound(
+                    "Producto no encontrado.");
 
-            producto.Activo = activo;
+            producto.Activo =
+                activo;
 
             await _context.SaveChangesAsync();
 

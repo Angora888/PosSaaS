@@ -27,6 +27,7 @@ namespace PosSaaS.Api.Controllers
 
         // ============================================================
         // CREAR VENTA
+        // Admin / Supervisor / Cajero
         // ============================================================
 
         [HttpPost]
@@ -35,8 +36,10 @@ namespace PosSaaS.Api.Controllers
             CrearVentaDto dto)
         {
             if (dto.CajaSesionId <= 0)
+            {
                 return BadRequest(
                     "La sesión de caja es obligatoria.");
+            }
 
             if (dto.Productos == null ||
                 dto.Productos.Count == 0)
@@ -85,12 +88,16 @@ namespace PosSaaS.Api.Controllers
 
                 if (sesion == null)
                 {
+                    await transaction.RollbackAsync();
+
                     return BadRequest(
                         "La sesión de caja no existe o se encuentra cerrada.");
                 }
 
                 if (!sesion.Caja.Activa)
                 {
+                    await transaction.RollbackAsync();
+
                     return BadRequest(
                         "La caja se encuentra inactiva.");
                 }
@@ -98,11 +105,12 @@ namespace PosSaaS.Api.Controllers
                 var sucursalId =
                     sesion.Caja.SucursalId;
 
-                // Si el usuario está asignado a una sucursal específica,
+                // Si el usuario tiene una sucursal asignada,
                 // solamente puede vender desde esa sucursal.
-                if (_tenantContext.SucursalId.HasValue &&
-                    _tenantContext.SucursalId.Value != sucursalId)
+                if (!PuedeAccederSucursal(sucursalId))
                 {
+                    await transaction.RollbackAsync();
+
                     return Forbid();
                 }
 
@@ -117,11 +125,14 @@ namespace PosSaaS.Api.Controllers
                     cliente = await _context.Clientes
                         .FirstOrDefaultAsync(x =>
                             x.Id == dto.ClienteId.Value &&
-                            x.TenantId == _tenantContext.TenantId &&
+                            x.TenantId ==
+                                _tenantContext.TenantId &&
                             x.Activo);
 
                     if (cliente == null)
                     {
+                        await transaction.RollbackAsync();
+
                         return BadRequest(
                             "El cliente no existe o está inactivo.");
                     }
@@ -137,7 +148,8 @@ namespace PosSaaS.Api.Controllers
                         .Select(x => new
                         {
                             ProductoId = x.Key,
-                            Cantidad = x.Sum(y => y.Cantidad)
+                            Cantidad =
+                                x.Sum(y => y.Cantidad)
                         })
                         .ToList();
 
@@ -150,15 +162,20 @@ namespace PosSaaS.Api.Controllers
                 // OBTENER PRODUCTOS DEL TENANT
                 // ====================================================
 
-                var productos = await _context.Productos
-                    .Where(x =>
-                        x.TenantId == _tenantContext.TenantId &&
-                        productoIds.Contains(x.Id) &&
-                        x.Activo)
-                    .ToListAsync();
+                var productos =
+                    await _context.Productos
+                        .Where(x =>
+                            x.TenantId ==
+                                _tenantContext.TenantId &&
+                            productoIds.Contains(x.Id) &&
+                            x.Activo)
+                        .ToListAsync();
 
-                if (productos.Count != productoIds.Count)
+                if (productos.Count !=
+                    productoIds.Count)
                 {
+                    await transaction.RollbackAsync();
+
                     return BadRequest(
                         "Uno o más productos no existen o están inactivos.");
                 }
@@ -167,12 +184,16 @@ namespace PosSaaS.Api.Controllers
                 // OBTENER INVENTARIO
                 // ====================================================
 
-                var inventarios = await _context.Inventarios
-                    .Where(x =>
-                        x.TenantId == _tenantContext.TenantId &&
-                        x.SucursalId == sucursalId &&
-                        productoIds.Contains(x.ProductoId))
-                    .ToListAsync();
+                var inventarios =
+                    await _context.Inventarios
+                        .Where(x =>
+                            x.TenantId ==
+                                _tenantContext.TenantId &&
+                            x.SucursalId ==
+                                sucursalId &&
+                            productoIds.Contains(
+                                x.ProductoId))
+                        .ToListAsync();
 
                 // ====================================================
                 // CALCULAR VENTA
@@ -185,18 +206,23 @@ namespace PosSaaS.Api.Controllers
                 var detallesCalculados =
                     new List<VentaDetalle>();
 
-                foreach (var solicitado in productosSolicitados)
+                foreach (var solicitado
+                         in productosSolicitados)
                 {
-                    var producto = productos
-                        .First(x =>
-                            x.Id == solicitado.ProductoId);
+                    var producto =
+                        productos.First(x =>
+                            x.Id ==
+                                solicitado.ProductoId);
 
-                    var inventario = inventarios
-                        .FirstOrDefault(x =>
-                            x.ProductoId == solicitado.ProductoId);
+                    var inventario =
+                        inventarios.FirstOrDefault(x =>
+                            x.ProductoId ==
+                                solicitado.ProductoId);
 
                     if (inventario == null)
                     {
+                        await transaction.RollbackAsync();
+
                         return BadRequest(
                             $"El producto '{producto.Nombre}' no tiene inventario en esta sucursal.");
                     }
@@ -204,6 +230,8 @@ namespace PosSaaS.Api.Controllers
                     if (inventario.Cantidad <
                         solicitado.Cantidad)
                     {
+                        await transaction.RollbackAsync();
+
                         return BadRequest(
                             $"Inventario insuficiente para '{producto.Nombre}'. " +
                             $"Disponible: {inventario.Cantidad}.");
@@ -221,7 +249,8 @@ namespace PosSaaS.Api.Controllers
                     var impuesto =
                         Math.Round(
                             subtotal *
-                            (producto.ImpuestoPorcentaje / 100m),
+                            (producto.ImpuestoPorcentaje /
+                             100m),
                             2);
 
                     var total =
@@ -234,7 +263,8 @@ namespace PosSaaS.Api.Controllers
                     detallesCalculados.Add(
                         new VentaDetalle
                         {
-                            ProductoId = producto.Id,
+                            ProductoId =
+                                producto.Id,
 
                             ProductoNombre =
                                 producto.Nombre,
@@ -293,6 +323,8 @@ namespace PosSaaS.Api.Controllers
                 if (metodosPago.Count !=
                     metodoPagoIds.Count)
                 {
+                    await transaction.RollbackAsync();
+
                     return BadRequest(
                         "Uno o más métodos de pago no son válidos.");
                 }
@@ -304,6 +336,8 @@ namespace PosSaaS.Api.Controllers
 
                 if (totalPagado != totalVenta)
                 {
+                    await transaction.RollbackAsync();
+
                     return BadRequest(new
                     {
                         mensaje =
@@ -375,23 +409,27 @@ namespace PosSaaS.Api.Controllers
                 // CREAR DETALLES
                 // ====================================================
 
-                foreach (var detalle in detallesCalculados)
+                foreach (var detalle
+                         in detallesCalculados)
                 {
                     detalle.VentaId =
                         venta.Id;
 
-                    _context.VentaDetalles.Add(detalle);
+                    _context.VentaDetalles
+                        .Add(detalle);
                 }
 
                 // ====================================================
                 // DESCONTAR INVENTARIO
                 // ====================================================
 
-                foreach (var solicitado in productosSolicitados)
+                foreach (var solicitado
+                         in productosSolicitados)
                 {
                     var producto =
                         productos.First(x =>
-                            x.Id == solicitado.ProductoId);
+                            x.Id ==
+                                solicitado.ProductoId);
 
                     var inventario =
                         inventarios.First(x =>
@@ -461,7 +499,7 @@ namespace PosSaaS.Api.Controllers
                     var metodo =
                         metodosPago.First(x =>
                             x.Id ==
-                            pagoDto.MetodoPagoId);
+                                pagoDto.MetodoPagoId);
 
                     var pago =
                         new PagoVenta
@@ -476,7 +514,10 @@ namespace PosSaaS.Api.Controllers
                                 pagoDto.Monto,
 
                             Referencia =
-                                pagoDto.Referencia?.Trim()
+                                string.IsNullOrWhiteSpace(
+                                    pagoDto.Referencia)
+                                    ? null
+                                    : pagoDto.Referencia.Trim()
                         };
 
                     _context.PagosVenta.Add(pago);
@@ -538,15 +579,16 @@ namespace PosSaaS.Api.Controllers
 
                     venta.Fecha,
 
-                    cliente = cliente == null
-                        ? null
-                        : new
-                        {
-                            cliente.Id,
-                            cliente.Nombre,
-                            cliente.Identificacion,
-                            cliente.Telefono
-                        },
+                    cliente =
+                        cliente == null
+                            ? null
+                            : new
+                            {
+                                cliente.Id,
+                                cliente.Nombre,
+                                cliente.Identificacion,
+                                cliente.Telefono
+                            },
 
                     subtotal =
                         subtotalVenta,
@@ -566,7 +608,7 @@ namespace PosSaaS.Api.Controllers
                             var metodo =
                                 metodosPago.First(m =>
                                     m.Id ==
-                                    x.MetodoPagoId);
+                                        x.MetodoPagoId);
 
                             return new
                             {
@@ -583,82 +625,103 @@ namespace PosSaaS.Api.Controllers
             catch
             {
                 await transaction.RollbackAsync();
-
                 throw;
             }
         }
 
         // ============================================================
         // OBTENER VENTA
+        // Admin:
+        //   Puede consultar cualquier venta del Tenant si no tiene
+        //   una sucursal asignada.
+        //
+        // Supervisor / Cajero:
+        //   Si tienen SucursalId en el JWT, solamente pueden
+        //   consultar ventas de esa sucursal.
         // ============================================================
 
         [HttpGet("{id:long}")]
-        public async Task<IActionResult> ObtenerPorId(long id)
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
+        public async Task<IActionResult> ObtenerPorId(
+            long id)
         {
-            var venta = await _context.Ventas
-                .Where(x =>
-                    x.Id == id &&
-                    x.TenantId ==
-                        _tenantContext.TenantId)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.NumeroVenta,
-                    x.Fecha,
-                    x.Estado,
+            var query =
+                _context.Ventas
+                    .Where(x =>
+                        x.Id == id &&
+                        x.TenantId ==
+                            _tenantContext.TenantId);
 
-                    x.Subtotal,
-                    x.Descuento,
-                    x.Impuesto,
-                    x.Total,
+            // SEGURIDAD DE SUCURSAL
+            if (_tenantContext.SucursalId.HasValue)
+            {
+                query = query.Where(x =>
+                    x.SucursalId ==
+                        _tenantContext.SucursalId.Value);
+            }
 
-                    sucursal =
-                        x.Sucursal.Nombre,
+            var venta =
+                await query
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.NumeroVenta,
+                        x.Fecha,
+                        x.Estado,
 
-                    caja =
-                        x.CajaSesion.Caja.Nombre,
+                        x.Subtotal,
+                        x.Descuento,
+                        x.Impuesto,
+                        x.Total,
 
-                    usuario =
-                        x.Usuario.Nombre,
+                        sucursal =
+                            x.Sucursal.Nombre,
 
-                    cliente = x.Cliente == null
-                        ? null
-                        : new
-                        {
-                            x.Cliente.Id,
-                            x.Cliente.Nombre,
-                            x.Cliente.Identificacion,
-                            x.Cliente.Telefono,
-                            x.Cliente.Email,
-                            x.Cliente.Direccion
-                        },
+                        caja =
+                            x.CajaSesion.Caja.Nombre,
 
-                    productos =
-                        x.Detalles.Select(d =>
-                            new
-                            {
-                                d.ProductoId,
-                                d.ProductoNombre,
-                                d.Cantidad,
-                                d.PrecioUnitario,
-                                d.ImpuestoPorcentaje,
-                                d.Subtotal,
-                                d.Impuesto,
-                                d.Total
-                            }),
+                        usuario =
+                            x.Usuario.Nombre,
 
-                    pagos =
-                        x.Pagos.Select(p =>
-                            new
-                            {
-                                metodo =
-                                    p.MetodoPago.Nombre,
+                        cliente =
+                            x.Cliente == null
+                                ? null
+                                : new
+                                {
+                                    x.Cliente.Id,
+                                    x.Cliente.Nombre,
+                                    x.Cliente.Identificacion,
+                                    x.Cliente.Telefono,
+                                    x.Cliente.Email,
+                                    x.Cliente.Direccion
+                                },
 
-                                p.Monto,
-                                p.Referencia
-                            })
-                })
-                .FirstOrDefaultAsync();
+                        productos =
+                            x.Detalles.Select(d =>
+                                new
+                                {
+                                    d.ProductoId,
+                                    d.ProductoNombre,
+                                    d.Cantidad,
+                                    d.PrecioUnitario,
+                                    d.ImpuestoPorcentaje,
+                                    d.Subtotal,
+                                    d.Impuesto,
+                                    d.Total
+                                }),
+
+                        pagos =
+                            x.Pagos.Select(p =>
+                                new
+                                {
+                                    metodo =
+                                        p.MetodoPago.Nombre,
+
+                                    p.Monto,
+                                    p.Referencia
+                                })
+                    })
+                    .FirstOrDefaultAsync();
 
             if (venta == null)
             {
@@ -671,9 +734,13 @@ namespace PosSaaS.Api.Controllers
 
         // ============================================================
         // LISTAR VENTAS
+        //
+        // Si existe SucursalId en JWT:
+        // solamente devuelve ventas de esa sucursal.
         // ============================================================
 
         [HttpGet]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerVentas(
             [FromQuery] DateTime? desde,
             [FromQuery] DateTime? hasta)
@@ -684,11 +751,12 @@ namespace PosSaaS.Api.Controllers
                         x.TenantId ==
                             _tenantContext.TenantId);
 
+            // SEGURIDAD DE SUCURSAL
             if (_tenantContext.SucursalId.HasValue)
             {
                 query = query.Where(x =>
                     x.SucursalId ==
-                    _tenantContext.SucursalId.Value);
+                        _tenantContext.SucursalId.Value);
             }
 
             if (desde.HasValue)
@@ -703,33 +771,52 @@ namespace PosSaaS.Api.Controllers
                     x.Fecha <= hasta.Value);
             }
 
-            var ventas = await query
-                .OrderByDescending(x => x.Fecha)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.NumeroVenta,
-                    x.Fecha,
+            var ventas =
+                await query
+                    .OrderByDescending(x =>
+                        x.Fecha)
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.NumeroVenta,
+                        x.Fecha,
 
-                    cliente = x.Cliente != null
-                        ? x.Cliente.Nombre
-                        : null,
+                        cliente =
+                            x.Cliente != null
+                                ? x.Cliente.Nombre
+                                : null,
 
-                    sucursal =
-                        x.Sucursal.Nombre,
+                        sucursal =
+                            x.Sucursal.Nombre,
 
-                    caja =
-                        x.CajaSesion.Caja.Nombre,
+                        caja =
+                            x.CajaSesion.Caja.Nombre,
 
-                    usuario =
-                        x.Usuario.Nombre,
+                        usuario =
+                            x.Usuario.Nombre,
 
-                    x.Total,
-                    x.Estado
-                })
-                .ToListAsync();
+                        x.Total,
+                        x.Estado
+                    })
+                    .ToListAsync();
 
             return Ok(ventas);
+        }
+
+        // ============================================================
+        // SEGURIDAD DE SUCURSAL
+        // ============================================================
+
+        private bool PuedeAccederSucursal(
+            int sucursalId)
+        {
+            if (!_tenantContext.SucursalId.HasValue)
+            {
+                return true;
+            }
+
+            return _tenantContext.SucursalId.Value ==
+                   sucursalId;
         }
     }
 }

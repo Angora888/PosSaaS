@@ -3,6 +3,9 @@ import AppLayout from "../layouts/AppLayout";
 import api from "../services/api";
 
 function Clientes() {
+  const rol = localStorage.getItem("rol") || "Usuario";
+  const puedeCambiarEstado = rol === "Admin" || rol === "Supervisor";
+
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState("");
 
@@ -575,32 +578,34 @@ function Clientes() {
                               <i className="bi bi-pencil"></i>
                             </button>
 
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${
-                                cliente.activo
-                                  ? "btn-outline-danger"
-                                  : "btn-outline-success"
-                              }`}
-                              title={
-                                cliente.activo
-                                  ? "Desactivar"
-                                  : "Activar"
-                              }
-                              onClick={() =>
-                                cambiarEstado(
-                                  cliente
-                                )
-                              }
-                            >
-                              <i
-                                className={`bi ${
+                            {puedeCambiarEstado && (
+                              <button
+                                type="button"
+                                className={`btn btn-sm ${
                                   cliente.activo
-                                    ? "bi-slash-circle"
-                                    : "bi-check-circle"
+                                    ? "btn-outline-danger"
+                                    : "btn-outline-success"
                                 }`}
-                              ></i>
-                            </button>
+                                title={
+                                  cliente.activo
+                                    ? "Desactivar"
+                                    : "Activar"
+                                }
+                                onClick={() =>
+                                  cambiarEstado(
+                                    cliente
+                                  )
+                                }
+                              >
+                                <i
+                                  className={`bi ${
+                                    cliente.activo
+                                      ? "bi-slash-circle"
+                                      : "bi-check-circle"
+                                  }`}
+                                ></i>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

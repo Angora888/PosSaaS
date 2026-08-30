@@ -11,6 +11,10 @@ import PuntoVenta from "./pages/PuntoVenta";
 import Productos from "./pages/Productos";
 import Inventario from "./pages/Inventario";
 import Clientes from "./pages/Clientes";
+import Ventas from "./pages/Ventas";
+import Cajas from "./pages/Cajas";
+import Configuracion from "./pages/Configuracion";
+import Usuarios from "./pages/Usuarios";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -30,7 +34,13 @@ function App() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+              "Cajero",
+            ]}
+          >
             <Dashboard />
           </ProtectedRoute>
         }
@@ -39,7 +49,13 @@ function App() {
       <Route
         path="/pos"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+              "Cajero",
+            ]}
+          >
             <PuntoVenta />
           </ProtectedRoute>
         }
@@ -48,7 +64,12 @@ function App() {
       <Route
         path="/productos"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+            ]}
+          >
             <Productos />
           </ProtectedRoute>
         }
@@ -57,7 +78,12 @@ function App() {
       <Route
         path="/inventario"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+            ]}
+          >
             <Inventario />
           </ProtectedRoute>
         }
@@ -66,8 +92,70 @@ function App() {
       <Route
         path="/clientes"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+              "Cajero",
+            ]}
+          >
             <Clientes />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/ventas"
+        element={
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+              "Cajero",
+            ]}
+          >
+            <Ventas />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/cajas"
+        element={
+          <ProtectedRoute
+            roles={[
+              "Admin",
+              "Supervisor",
+              "Cajero",
+            ]}
+          >
+            <Cajas />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/usuarios"
+        element={
+          <ProtectedRoute
+            roles={[
+              "Admin",
+            ]}
+          >
+            <Usuarios />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/configuracion"
+        element={
+          <ProtectedRoute
+            roles={[
+              "Admin",
+            ]}
+          >
+            <Configuracion />
           </ProtectedRoute>
         }
       />

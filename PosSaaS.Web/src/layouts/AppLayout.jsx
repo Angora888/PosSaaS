@@ -7,13 +7,24 @@ function AppLayout({ children }) {
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol") || "Usuario";
 
+  const esAdmin = rol === "Admin";
+  const esSupervisor = rol === "Supervisor";
+  const esCajero = rol === "Cajero";
+
+  const puedeVerProductos = esAdmin || esSupervisor;
+  const puedeVerInventario = esAdmin || esSupervisor;
+  const puedeVerUsuarios = esAdmin;
+  const puedeVerConfiguracion = esAdmin;
+
   const cerrarSesion = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("usuarioId");
     localStorage.removeItem("nombre");
+    localStorage.removeItem("email");
     localStorage.removeItem("rol");
     localStorage.removeItem("tenantId");
     localStorage.removeItem("sucursalId");
+    localStorage.removeItem("comercio");
 
     navigate("/login", {
       replace: true,
@@ -55,25 +66,29 @@ function AppLayout({ children }) {
             <span>Punto de Venta</span>
           </NavLink>
 
-          <NavLink
-            to="/productos"
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? "active" : ""}`
-            }
-          >
-            <i className="bi bi-box-seam"></i>
-            <span>Productos</span>
-          </NavLink>
+          {puedeVerProductos && (
+            <NavLink
+              to="/productos"
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "active" : ""}`
+              }
+            >
+              <i className="bi bi-box-seam"></i>
+              <span>Productos</span>
+            </NavLink>
+          )}
 
-          <NavLink
-            to="/inventario"
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? "active" : ""}`
-            }
-          >
-            <i className="bi bi-boxes"></i>
-            <span>Inventario</span>
-          </NavLink>
+          {puedeVerInventario && (
+            <NavLink
+              to="/inventario"
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "active" : ""}`
+              }
+            >
+              <i className="bi bi-boxes"></i>
+              <span>Inventario</span>
+            </NavLink>
+          )}
 
           <NavLink
             to="/clientes"
@@ -105,17 +120,33 @@ function AppLayout({ children }) {
             <span>Cajas</span>
           </NavLink>
 
-          <div className="sidebar-separator"></div>
+          {(puedeVerUsuarios || puedeVerConfiguracion) && (
+            <div className="sidebar-separator"></div>
+          )}
 
-          <NavLink
-            to="/configuracion"
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? "active" : ""}`
-            }
-          >
-            <i className="bi bi-gear"></i>
-            <span>Configuración</span>
-          </NavLink>
+          {puedeVerUsuarios && (
+            <NavLink
+              to="/usuarios"
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "active" : ""}`
+              }
+            >
+              <i className="bi bi-person-gear"></i>
+              <span>Usuarios</span>
+            </NavLink>
+          )}
+
+          {puedeVerConfiguracion && (
+            <NavLink
+              to="/configuracion"
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "active" : ""}`
+              }
+            >
+              <i className="bi bi-gear"></i>
+              <span>Configuración</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="sidebar-footer">

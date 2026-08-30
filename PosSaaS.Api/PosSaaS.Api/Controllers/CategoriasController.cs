@@ -25,6 +25,7 @@ namespace PosSaaS.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,Supervisor,Cajero")]
         public async Task<IActionResult> ObtenerTodas()
         {
             var categorias = await _context.Categorias
@@ -42,7 +43,7 @@ namespace PosSaaS.Api.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Crear(CategoriaDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
@@ -75,7 +76,7 @@ namespace PosSaaS.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Actualizar(
             int id,
             CategoriaDto dto)
@@ -112,7 +113,7 @@ namespace PosSaaS.Api.Controllers
         }
 
         [HttpPatch("{id:int}/estado")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CambiarEstado(
             int id,
             [FromQuery] bool activa)
