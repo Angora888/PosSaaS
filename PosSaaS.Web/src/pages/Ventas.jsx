@@ -40,6 +40,14 @@ function Ventas() {
       maximumFractionDigits: 0,
     }).format(Number(valor) || 0);
 
+  const monedaTicket = (valor) =>
+    new Intl.NumberFormat("es-CR", {
+      style: "currency",
+      currency: "CRC",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(Number(valor) || 0);
+
   const fechaHora = (fecha) => {
     if (!fecha) return "-";
     return new Intl.DateTimeFormat("es-CR", {
@@ -48,8 +56,29 @@ function Ventas() {
     }).format(new Date(fecha));
   };
 
+  const fechaTicket = (fecha) => {
+    if (!fecha) return "";
+    return new Intl.DateTimeFormat("es-CR", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(fecha));
+  };
+
+  const escaparHtml = (valor) =>
+    String(valor ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
   const sucursales = useMemo(
     () => [...new Set(ventas.map((x) => x.sucursal).filter(Boolean))].sort(),
+    [ventas]
+  );
+
+  const estados = useMemo(
+    () => [...new Set(ventas.map((x) => x.estado).filter(Boolean))].sort(),
     [ventas]
   );
 
@@ -62,7 +91,8 @@ function Ventas() {
         venta.numeroVenta?.toLowerCase().includes(texto) ||
         venta.cliente?.toLowerCase().includes(texto) ||
         venta.usuario?.toLowerCase().includes(texto) ||
-        venta.caja?.toLowerCase().includes(texto);
+        venta.caja?.toLowerCase().includes(texto) ||
+        venta.sucursal?.toLowerCase().includes(texto);
 
       const coincideEstado = !estado || venta.estado === estado;
       const coincideSucursal = !sucursal || venta.sucursal === sucursal;
@@ -91,6 +121,25 @@ function Ventas() {
     [ventasFiltradas]
   );
 
+  const ticketPromedio = useMemo(
+    () =>
+      ventasFiltradas.length > 0
+        ? totalFiltrado / ventasFiltradas.length
+        : 0,
+    [ventasFiltradas, totalFiltrado]
+  );
+
+  const ultimaVenta = useMemo(() => {
+    if (ventasFiltradas.length === 0) return null;
+
+    return ventasFiltradas.reduce((masReciente, actual) => {
+      if (!masReciente) return actual;
+      return new Date(actual.fecha) > new Date(masReciente.fecha)
+        ? actual
+        : masReciente;
+    }, null);
+  }, [ventasFiltradas]);
+
   const abrirDetalle = async (ventaId) => {
     try {
       setCargandoDetalle(true);
@@ -106,6 +155,109 @@ function Ventas() {
     }
   };
 
+  const imprimirTicket = () => {
+    if (!detalle) return;
+
+    const ventana = window.open("", "_blank", "width=420,height=720");
+    if (!ventana) {
+      setErrorDetalle(
+        "El navegador bloqueó la ventana de impresión. Permite ventanas emergentes e inténtalo nuevamente."
+      );
+      return;
+    }
+
+    const negocio =
+      localStorage.getItem("nombreComercial") ||
+      localStorage.getItem("comercio") ||
+      "POS SaaS";
+
+    const productosTicket = detalle.productos || [];
+    const pagosTicket = detalle.pagos || [];
+
+    ventana.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escaparHtml(detalle.numeroVenta || "Ticket")}</title>
+          <style>
+            body { font-family: Arial, sans-serif; width: 300px; margin: 20px auto; color: #111; }
+            h2, p { margin: 0; }
+            .center { text-align: center; }
+            .muted { color: #666; font-size: 12px; }
+            .line { border-top: 1px dashed #999; margin: 12px 0; }
+            .row { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0; }
+            .bold { font-weight: 700; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            td { padding: 4px 0; vertical-align: top; }
+            td:last-child { text-align: right; white-space: nowrap; }
+            @media print { body { margin: 0 auto; } }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <h2>${escaparHtml(negocio)}</h2>
+            <p class="muted">Comprobante de venta</p>
+            <p class="muted">Reimpresión</p>
+          </div>
+          <div class="line"></div>
+          <div class="muted">${escaparHtml(detalle.numeroVenta || "")}</div>
+          <div class="muted">${escaparHtml(fechaTicket(detalle.fecha))}</div>
+          <div class="muted">Sucursal: ${escaparHtml(detalle.sucursal || "-")}</div>
+          <div class="muted">Caja: ${escaparHtml(detalle.caja || "-")}</div>
+          <div class="muted">Atendido por: ${escaparHtml(detalle.usuario || "-")}</div>
+          <div class="muted">Cliente: ${escaparHtml(detalle.cliente?.nombre || "Consumidor final")}</div>
+          <div class="line"></div>
+          <table>
+            <tbody>
+              ${productosTicket
+                .map(
+                  (p) => `<tr><td>${escaparHtml(p.cantidad)} x ${escaparHtml(
+                    p.productoNombre
+                  )}</td><td>${escaparHtml(monedaTicket(p.total))}</td></tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="line"></div>
+          <div class="row"><span>Subtotal</span><span>${escaparHtml(
+            monedaTicket(detalle.subtotal)
+          )}</span></div>
+          <div class="row"><span>IVA</span><span>${escaparHtml(
+            monedaTicket(detalle.impuesto)
+          )}</span></div>
+          ${
+            Number(detalle.descuento || 0) > 0
+              ? `<div class="row"><span>Descuento</span><span>${escaparHtml(
+                  monedaTicket(detalle.descuento)
+                )}</span></div>`
+              : ""
+          }
+          <div class="row bold"><span>Total</span><span>${escaparHtml(
+            monedaTicket(detalle.total)
+          )}</span></div>
+          <div class="line"></div>
+          ${pagosTicket
+            .map(
+              (p) => `<div class="row"><span>${escaparHtml(
+                p.metodo
+              )}</span><span>${escaparHtml(monedaTicket(p.monto))}</span></div>${
+                p.referencia
+                  ? `<div class="muted">Ref: ${escaparHtml(p.referencia)}</div>`
+                  : ""
+              }`
+            )
+            .join("")}
+          <div class="line"></div>
+          <p class="center muted">¡Gracias por su compra!</p>
+          <script>window.onload = () => { window.print(); };</script>
+        </body>
+      </html>
+    `);
+
+    ventana.document.close();
+  };
+
   const limpiarFiltros = () => {
     setBusqueda("");
     setEstado("");
@@ -114,13 +266,19 @@ function Ventas() {
     setHasta("");
   };
 
+  const claseEstado = (valor) => {
+    if (valor === "COMPLETADA") return "badge text-bg-success";
+    if (valor === "ANULADA") return "badge text-bg-danger";
+    return "badge text-bg-secondary";
+  };
+
   return (
     <AppLayout>
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
           <h2 className="fw-bold mb-1">Ventas</h2>
           <p className="text-secondary mb-0">
-            Consulta y revisa las transacciones registradas.
+            Consulta transacciones, revisa su detalle y reimprime comprobantes.
           </p>
         </div>
 
@@ -146,8 +304,13 @@ function Ventas() {
         <div className="col-md-6 col-xl-3">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-4">
-              <p className="text-secondary mb-2">Ventas mostradas</p>
-              <h3 className="fw-bold mb-0">{ventasFiltradas.length}</h3>
+              <div className="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <p className="text-secondary mb-2">Ventas mostradas</p>
+                  <h3 className="fw-bold mb-0">{ventasFiltradas.length}</h3>
+                </div>
+                <i className="bi bi-receipt fs-3 text-secondary"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -155,8 +318,13 @@ function Ventas() {
         <div className="col-md-6 col-xl-3">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-4">
-              <p className="text-secondary mb-2">Total mostrado</p>
-              <h3 className="fw-bold mb-0">{moneda(totalFiltrado)}</h3>
+              <div className="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <p className="text-secondary mb-2">Total mostrado</p>
+                  <h3 className="fw-bold mb-0">{moneda(totalFiltrado)}</h3>
+                </div>
+                <i className="bi bi-cash-stack fs-3 text-secondary"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -164,8 +332,13 @@ function Ventas() {
         <div className="col-md-6 col-xl-3">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-4">
-              <p className="text-secondary mb-2">Total histórico</p>
-              <h3 className="fw-bold mb-0">{ventas.length}</h3>
+              <div className="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <p className="text-secondary mb-2">Ticket promedio</p>
+                  <h3 className="fw-bold mb-0">{moneda(ticketPromedio)}</h3>
+                </div>
+                <i className="bi bi-graph-up-arrow fs-3 text-secondary"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -173,8 +346,18 @@ function Ventas() {
         <div className="col-md-6 col-xl-3">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-4">
-              <p className="text-secondary mb-2">Sucursales</p>
-              <h3 className="fw-bold mb-0">{sucursales.length}</h3>
+              <div className="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <p className="text-secondary mb-2">Última venta</p>
+                  <h6 className="fw-bold mb-1">
+                    {ultimaVenta?.numeroVenta || "Sin ventas"}
+                  </h6>
+                  <small className="text-secondary">
+                    {ultimaVenta ? fechaHora(ultimaVenta.fecha) : "-"}
+                  </small>
+                </div>
+                <i className="bi bi-clock-history fs-3 text-secondary"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -192,7 +375,7 @@ function Ventas() {
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Venta, cliente, usuario o caja..."
+                  placeholder="Venta, cliente, usuario, caja o sucursal..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                 />
@@ -207,7 +390,11 @@ function Ventas() {
                 onChange={(e) => setEstado(e.target.value)}
               >
                 <option value="">Todos</option>
-                <option value="COMPLETADA">Completada</option>
+                {estados.map((valor) => (
+                  <option key={valor} value={valor}>
+                    {valor}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -248,7 +435,10 @@ function Ventas() {
             </div>
           </div>
 
-          <div className="d-flex justify-content-end mt-3">
+          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <small className="text-secondary">
+              {ventasFiltradas.length} de {ventas.length} ventas visibles
+            </small>
             <button
               type="button"
               className="btn btn-link text-decoration-none"
@@ -265,12 +455,10 @@ function Ventas() {
           {cargando ? (
             <div className="text-center py-5">
               <div className="spinner-border" role="status"></div>
-              <p className="text-secondary mt-3 mb-0">
-                Cargando ventas...
-              </p>
+              <p className="text-secondary mt-3 mb-0">Cargando ventas...</p>
             </div>
           ) : ventasFiltradas.length === 0 ? (
-            <div className="text-center py-5">
+            <div className="text-center py-5 px-3">
               <i className="bi bi-receipt fs-1 text-secondary"></i>
               <h5 className="mt-3">No hay ventas para mostrar</h5>
               <p className="text-secondary mb-0">
@@ -303,9 +491,7 @@ function Ventas() {
                       <td>{fechaHora(venta.fecha)}</td>
                       <td>
                         {venta.cliente || (
-                          <span className="text-secondary">
-                            Consumidor final
-                          </span>
+                          <span className="text-secondary">Consumidor final</span>
                         )}
                       </td>
                       <td>{venta.sucursal}</td>
@@ -315,13 +501,7 @@ function Ventas() {
                         {moneda(venta.total)}
                       </td>
                       <td className="text-center">
-                        <span
-                          className={
-                            venta.estado === "COMPLETADA"
-                              ? "badge text-bg-success"
-                              : "badge text-bg-secondary"
-                          }
-                        >
+                        <span className={claseEstado(venta.estado)}>
                           {venta.estado}
                         </span>
                       </td>
@@ -358,9 +538,7 @@ function Ventas() {
               <div>
                 <h5 className="modal-title fw-bold">Detalle de venta</h5>
                 {detalle?.numeroVenta && (
-                  <small className="text-secondary">
-                    {detalle.numeroVenta}
-                  </small>
+                  <small className="text-secondary">{detalle.numeroVenta}</small>
                 )}
               </div>
               <button
@@ -380,11 +558,23 @@ function Ventas() {
                   </p>
                 </div>
               ) : errorDetalle ? (
-                <div className="alert alert-danger mb-0">
-                  {errorDetalle}
-                </div>
+                <div className="alert alert-danger mb-0">{errorDetalle}</div>
               ) : detalle ? (
                 <>
+                  <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                    <span className={claseEstado(detalle.estado)}>
+                      {detalle.estado}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-dark"
+                      onClick={imprimirTicket}
+                    >
+                      <i className="bi bi-printer me-2"></i>
+                      Reimprimir ticket
+                    </button>
+                  </div>
+
                   <div className="row g-3 mb-4">
                     {[
                       ["Fecha", fechaHora(detalle.fecha)],
@@ -394,9 +584,7 @@ function Ventas() {
                     ].map(([titulo, valor]) => (
                       <div className="col-md-6 col-xl-3" key={titulo}>
                         <div className="border rounded p-3 h-100">
-                          <small className="text-secondary d-block">
-                            {titulo}
-                          </small>
+                          <small className="text-secondary d-block">{titulo}</small>
                           <strong>{valor}</strong>
                         </div>
                       </div>
@@ -416,7 +604,9 @@ function Ventas() {
                             <strong>{detalle.cliente.nombre}</strong>
                           </div>
                           <div className="col-md-4">
-                            <small className="text-secondary d-block">Identificación</small>
+                            <small className="text-secondary d-block">
+                              Identificación
+                            </small>
                             <span>{detalle.cliente.identificacion || "-"}</span>
                           </div>
                           <div className="col-md-4">
@@ -447,9 +637,15 @@ function Ventas() {
                           <tr key={`${producto.productoId}-${index}`}>
                             <td>{producto.productoNombre}</td>
                             <td className="text-end">{producto.cantidad}</td>
-                            <td className="text-end">{moneda(producto.precioUnitario)}</td>
-                            <td className="text-end">{producto.impuestoPorcentaje}%</td>
-                            <td className="text-end fw-semibold">{moneda(producto.total)}</td>
+                            <td className="text-end">
+                              {moneda(producto.precioUnitario)}
+                            </td>
+                            <td className="text-end">
+                              {producto.impuestoPorcentaje}%
+                            </td>
+                            <td className="text-end fw-semibold">
+                              {moneda(producto.total)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -463,7 +659,7 @@ function Ventas() {
                         {(detalle.pagos || []).map((pago, index) => (
                           <div
                             key={`${pago.metodo}-${index}`}
-                            className="list-group-item d-flex justify-content-between align-items-center"
+                            className="list-group-item d-flex justify-content-between align-items-center gap-3"
                           >
                             <div>
                               <strong>{pago.metodo}</strong>
