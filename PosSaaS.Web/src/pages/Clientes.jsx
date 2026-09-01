@@ -7,6 +7,7 @@ function Clientes() {
   const puedeCambiarEstado = rol === "Admin" || rol === "Supervisor";
 
   const [clientes, setClientes] = useState([]);
+  const [ventas, setVentas] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [cargando, setCargando] = useState(true);
@@ -15,6 +16,12 @@ function Clientes() {
   const [mensaje, setMensaje] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
+
+  const [clientePerfil, setClientePerfil] = useState(null);
+  const [historialCliente, setHistorialCliente] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState("");
+
   const [formulario, setFormulario] = useState({
     nombre: "",
     identificacion: "",
@@ -24,20 +31,36 @@ function Clientes() {
   });
 
   useEffect(() => {
-    cargarClientes();
+    cargarInicial();
   }, []);
 
-  const cargarClientes = async () => {
+  const cargarInicial = async () => {
     try {
       setCargando(true);
       setError("");
+
+      const [clientesResponse, ventasResponse] = await Promise.all([
+        api.get("/Clientes"),
+        api.get("/Ventas"),
+      ]);
+
+      setClientes(clientesResponse.data || []);
+      setVentas(ventasResponse.data || []);
+    } catch (err) {
+      console.error(err);
+      setError("No fue posible cargar la información de clientes.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cargarClientes = async () => {
+    try {
       const response = await api.get("/Clientes");
       setClientes(response.data || []);
     } catch (err) {
       console.error(err);
-      setError("No fue posible cargar los clientes.");
-    } finally {
-      setCargando(false);
+      setError("No fue posible actualizar los clientes.");
     }
   };
 
@@ -66,6 +89,21 @@ function Clientes() {
   const activos = clientes.filter((cliente) => cliente.activo).length;
   const inactivos = totalClientes - activos;
   const conTelefono = clientes.filter((cliente) => cliente.telefono).length;
+
+  const moneda = (valor) =>
+    new Intl.NumberFormat("es-CR", {
+      style: "currency",
+      currency: "CRC",
+      maximumFractionDigits: 0,
+    }).format(Number(valor) || 0);
+
+  const fechaHora = (valor) => {
+    if (!valor) return "-";
+    return new Intl.DateTimeFormat("es-CR", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(valor));
+  };
 
   const limpiarFormulario = () => {
     setFormulario({
@@ -245,6 +283,82 @@ function Clientes() {
     setFiltroEstado("TODOS");
   };
 
+  const abrirPerfilCliente = async (cliente) => {
+    setClientePerfil(cliente);
+    setHistorialCliente([]);
+    setErrorHistorial("");
+    setCargandoHistorial(true);
+
+    try {
+      const candidatos = ventas.filter(
+        (venta) =>
+          venta.cliente === cliente.nombre &&
+          String(venta.estado || "").toUpperCase() === "COMPLETADA"
+      );
+
+      if (candidatos.length === 0) {
+        return;
+      }
+
+      const resultados = await Promise.allSettled(
+        candidatos.map((venta) => api.get(`/Ventas/${venta.id}`))
+      );
+
+      const confirmadas = resultados
+        .filter((resultado) => resultado.status === "fulfilled")
+        .map((resultado) => resultado.value.data)
+        .filter(
+          (venta) =>
+            Number(venta.cliente?.id) === Number(cliente.id) &&
+            String(venta.estado || "").toUpperCase() === "COMPLETADA"
+        )
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+      setHistorialCliente(confirmadas);
+
+      const fallidas = resultados.filter(
+        (resultado) => resultado.status === "rejected"
+      ).length;
+
+      if (fallidas > 0) {
+        setErrorHistorial(
+          "Algunas ventas no pudieron verificarse. Las métricas muestran únicamente las compras confirmadas."
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorHistorial("No fue posible cargar el historial de compras.");
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
+  const cerrarPerfilCliente = () => {
+    if (cargandoHistorial) return;
+    setClientePerfil(null);
+    setHistorialCliente([]);
+    setErrorHistorial("");
+  };
+
+  const totalGastado = useMemo(
+    () =>
+      historialCliente.reduce(
+        (acumulado, venta) => acumulado + Number(venta.total || 0),
+        0
+      ),
+    [historialCliente]
+  );
+
+  const ticketPromedioCliente = useMemo(
+    () =>
+      historialCliente.length > 0
+        ? totalGastado / historialCliente.length
+        : 0,
+    [historialCliente, totalGastado]
+  );
+
+  const ultimaCompra = historialCliente[0] || null;
+
   const tarjetas = [
     { titulo: "Total clientes", valor: totalClientes, icono: "bi-people", clase: "text-secondary" },
     { titulo: "Activos", valor: activos, icono: "bi-person-check", clase: "text-success" },
@@ -258,7 +372,7 @@ function Clientes() {
         <div>
           <h2 className="fw-bold mb-1">Clientes</h2>
           <p className="text-secondary mb-0">
-            Gestiona contactos, comunícate rápidamente y exporta tu cartera de clientes.
+            Gestiona contactos, comunícate rápidamente y consulta el historial de compras.
           </p>
         </div>
 
@@ -421,6 +535,14 @@ function Clientes() {
                       </td>
                       <td className="text-end pe-4">
                         <div className="btn-group">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            title="Historial de compras"
+                            onClick={() => abrirPerfilCliente(cliente)}
+                          >
+                            <i className="bi bi-clock-history"></i>
+                          </button>
                           {cliente.telefono && (
                             <a className="btn btn-sm btn-outline-secondary" href={`tel:${cliente.telefono}`} title="Llamar">
                               <i className="bi bi-telephone"></i>
@@ -459,6 +581,152 @@ function Clientes() {
           )}
         </div>
       </div>
+
+      {clientePerfil && (
+        <>
+          <div className="modal fade show d-block" tabIndex="-1">
+            <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+              <div className="modal-content border-0 shadow">
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title fw-bold">Perfil del cliente</h5>
+                    <small className="text-secondary">{clientePerfil.nombre}</small>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={cerrarPerfilCliente}
+                    disabled={cargandoHistorial}
+                  />
+                </div>
+
+                <div className="modal-body p-4">
+                  <div className="row g-3 mb-4">
+                    <div className="col-md-6 col-xl-3">
+                      <div className="border rounded p-3 h-100">
+                        <small className="text-secondary d-block">Compras</small>
+                        <div className="fs-4 fw-bold">{historialCliente.length}</div>
+                      </div>
+                    </div>
+                    <div className="col-md-6 col-xl-3">
+                      <div className="border rounded p-3 h-100">
+                        <small className="text-secondary d-block">Total gastado</small>
+                        <div className="fs-4 fw-bold">{moneda(totalGastado)}</div>
+                      </div>
+                    </div>
+                    <div className="col-md-6 col-xl-3">
+                      <div className="border rounded p-3 h-100">
+                        <small className="text-secondary d-block">Ticket promedio</small>
+                        <div className="fs-4 fw-bold">{moneda(ticketPromedioCliente)}</div>
+                      </div>
+                    </div>
+                    <div className="col-md-6 col-xl-3">
+                      <div className="border rounded p-3 h-100">
+                        <small className="text-secondary d-block">Última compra</small>
+                        <div className="fw-semibold mt-1">
+                          {ultimaCompra ? fechaHora(ultimaCompra.fecha) : "Sin compras"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card bg-light border-0 mb-4">
+                    <div className="card-body">
+                      <div className="row g-3">
+                        <div className="col-md-4">
+                          <small className="text-secondary d-block">Teléfono</small>
+                          <span>{clientePerfil.telefono || "-"}</span>
+                        </div>
+                        <div className="col-md-4">
+                          <small className="text-secondary d-block">Correo</small>
+                          <span>{clientePerfil.email || "-"}</span>
+                        </div>
+                        <div className="col-md-4">
+                          <small className="text-secondary d-block">Identificación</small>
+                          <span>{clientePerfil.identificacion || "-"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {errorHistorial && (
+                    <div className="alert alert-warning">
+                      <i className="bi bi-exclamation-triangle me-2"></i>
+                      {errorHistorial}
+                    </div>
+                  )}
+
+                  <h6 className="fw-bold mb-3">Historial de compras</h6>
+
+                  {cargandoHistorial ? (
+                    <div className="text-center py-5">
+                      <div className="spinner-border" />
+                      <p className="text-secondary mt-3 mb-0">Calculando historial...</p>
+                    </div>
+                  ) : historialCliente.length === 0 ? (
+                    <div className="text-center py-5 border rounded">
+                      <i className="bi bi-bag fs-1 text-secondary"></i>
+                      <h6 className="mt-3">Este cliente aún no tiene compras completadas</h6>
+                      <p className="text-secondary mb-0">
+                        Cuando se registre una venta a su nombre aparecerá aquí.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th>Venta</th>
+                            <th>Fecha</th>
+                            <th>Sucursal</th>
+                            <th>Caja</th>
+                            <th className="text-center">Productos</th>
+                            <th className="text-end">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {historialCliente.map((venta) => (
+                            <tr key={venta.id}>
+                              <td className="fw-semibold">{venta.numeroVenta}</td>
+                              <td>{fechaHora(venta.fecha)}</td>
+                              <td>{venta.sucursal}</td>
+                              <td>{venta.caja}</td>
+                              <td className="text-center">{venta.productos?.length || 0}</td>
+                              <td className="text-end fw-bold">{moneda(venta.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  {clientePerfil.telefono && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-success"
+                      onClick={() => abrirWhatsApp(clientePerfil)}
+                    >
+                      <i className="bi bi-whatsapp me-2"></i>
+                      WhatsApp
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={cerrarPerfilCliente}
+                    disabled={cargandoHistorial}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show"></div>
+        </>
+      )}
 
       {mostrarModal && (
         <>
