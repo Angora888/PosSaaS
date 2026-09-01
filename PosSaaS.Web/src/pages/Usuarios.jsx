@@ -5,7 +5,6 @@ import api from "../services/api";
 function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [sucursales, setSucursales] = useState([]);
-
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -14,10 +13,10 @@ function Usuarios() {
   const [buscar, setBuscar] = useState("");
   const [filtroRol, setFiltroRol] = useState("Todos");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
+  const [filtroSucursal, setFiltroSucursal] = useState("Todas");
 
   const [modalActivo, setModalActivo] = useState(null);
-  const [usuarioSeleccionado, setUsuarioSeleccionado] =
-    useState(null);
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
 
   const [formUsuario, setFormUsuario] = useState({
     nombre: "",
@@ -32,87 +31,69 @@ function Usuarios() {
     confirmarPassword: "",
   });
 
-  const usuarioActualId = Number(
-    localStorage.getItem("usuarioId")
-  );
+  const usuarioActualId = Number(localStorage.getItem("usuarioId"));
+  const rolActual = localStorage.getItem("rol") || "";
+  const esAdmin = rolActual === "Admin";
 
-  const rolActual =
-    localStorage.getItem("rol") || "";
-
-  const esAdmin =
-    rolActual === "Admin";
+  const rolesInfo = {
+    Admin: {
+      titulo: "Administrador",
+      icono: "bi-shield-check",
+      clase: "text-bg-dark",
+      descripcion: "Control total del comercio, usuarios, configuración y operación.",
+    },
+    Supervisor: {
+      titulo: "Supervisor",
+      icono: "bi-person-workspace",
+      clase: "text-bg-primary",
+      descripcion: "Opera cajas, inventario, clientes, ventas y reportes sin administrar usuarios.",
+    },
+    Cajero: {
+      titulo: "Cajero",
+      icono: "bi-person-badge",
+      clase: "text-bg-info",
+      descripcion: "Enfocado en POS, clientes, ventas y operación diaria de caja.",
+    },
+  };
 
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  const obtenerMensajeError = (err, mensajeDefault) => {
+    if (err.response?.data?.mensaje) return err.response.data.mensaje;
+    if (typeof err.response?.data === "string") return err.response.data;
+    if (!err.response) return "No se pudo conectar con el servidor.";
+    return mensajeDefault;
+  };
 
   const cargarDatos = async () => {
     try {
       setCargando(true);
       setError("");
 
-      const [usuariosResponse, sucursalesResponse] =
-        await Promise.all([
-          api.get("/Usuarios"),
-          api.get("/Sucursales"),
-        ]);
+      const [usuariosResponse, sucursalesResponse] = await Promise.all([
+        api.get("/Usuarios"),
+        api.get("/Sucursales"),
+      ]);
 
-      setUsuarios(
-        Array.isArray(usuariosResponse.data)
-          ? usuariosResponse.data
-          : []
-      );
-
-      setSucursales(
-        Array.isArray(sucursalesResponse.data)
-          ? sucursalesResponse.data
-          : []
-      );
+      setUsuarios(Array.isArray(usuariosResponse.data) ? usuariosResponse.data : []);
+      setSucursales(Array.isArray(sucursalesResponse.data) ? sucursalesResponse.data : []);
     } catch (err) {
       console.error(err);
-
-      if (err.response?.status === 403) {
-        setError(
-          "No tienes permisos para administrar usuarios."
-        );
-      } else {
-        setError(
-          obtenerMensajeError(
-            err,
-            "No se pudieron cargar los usuarios."
-          )
-        );
-      }
+      setError(
+        err.response?.status === 403
+          ? "No tienes permisos para administrar usuarios."
+          : obtenerMensajeError(err, "No se pudieron cargar los usuarios.")
+      );
     } finally {
       setCargando(false);
     }
   };
 
-  const obtenerMensajeError = (
-    err,
-    mensajeDefault
-  ) => {
-    if (err.response?.data?.mensaje) {
-      return err.response.data.mensaje;
-    }
-
-    if (typeof err.response?.data === "string") {
-      return err.response.data;
-    }
-
-    if (!err.response) {
-      return "No se pudo conectar con el servidor.";
-    }
-
-    return mensajeDefault;
-  };
-
   const mostrarMensaje = (texto) => {
     setMensaje(texto);
-
-    setTimeout(() => {
-      setMensaje("");
-    }, 3500);
+    setTimeout(() => setMensaje(""), 3500);
   };
 
   const limpiarFormularioUsuario = () => {
@@ -134,40 +115,29 @@ function Usuarios() {
 
   const abrirEditarUsuario = (usuario) => {
     setUsuarioSeleccionado(usuario);
-
     setFormUsuario({
       nombre: usuario.nombre || "",
       email: usuario.email || "",
       password: "",
       rol: usuario.rol || "Cajero",
       sucursalId:
-        usuario.sucursalId !== null &&
-        usuario.sucursalId !== undefined
+        usuario.sucursalId !== null && usuario.sucursalId !== undefined
           ? String(usuario.sucursalId)
           : "",
     });
-
     setError("");
     setModalActivo("usuario");
   };
 
   const abrirCambiarPassword = (usuario) => {
     setUsuarioSeleccionado(usuario);
-
-    setFormPassword({
-      password: "",
-      confirmarPassword: "",
-    });
-
+    setFormPassword({ password: "", confirmarPassword: "" });
     setError("");
     setModalActivo("password");
   };
 
   const cerrarModal = () => {
-    if (guardando) {
-      return;
-    }
-
+    if (guardando) return;
     setModalActivo(null);
     setUsuarioSeleccionado(null);
     setError("");
@@ -175,71 +145,36 @@ function Usuarios() {
 
   const guardarUsuario = async (e) => {
     e.preventDefault();
-
     setError("");
 
-    const nombre =
-      formUsuario.nombre.trim();
+    const nombre = formUsuario.nombre.trim();
+    const email = formUsuario.email.trim().toLowerCase();
 
-    const email =
-      formUsuario.email.trim().toLowerCase();
+    if (!nombre) return setError("El nombre del usuario es obligatorio.");
+    if (!email) return setError("El correo electrónico es obligatorio.");
 
-    if (!nombre) {
-      setError(
-        "El nombre del usuario es obligatorio."
-      );
-      return;
+    if (!usuarioSeleccionado && !formUsuario.password) {
+      return setError("La contraseña es obligatoria.");
     }
 
-    if (!email) {
-      setError(
-        "El correo electrónico es obligatorio."
-      );
-      return;
-    }
-
-    if (
-      !usuarioSeleccionado &&
-      !formUsuario.password
-    ) {
-      setError(
-        "La contraseña es obligatoria."
-      );
-      return;
-    }
-
-    if (
-      !usuarioSeleccionado &&
-      formUsuario.password.length < 6
-    ) {
-      setError(
-        "La contraseña debe tener al menos 6 caracteres."
-      );
-      return;
+    if (!usuarioSeleccionado && formUsuario.password.length < 6) {
+      return setError("La contraseña debe tener al menos 6 caracteres.");
     }
 
     try {
       setGuardando(true);
 
       const sucursalId =
-        formUsuario.sucursalId === ""
-          ? null
-          : Number(formUsuario.sucursalId);
+        formUsuario.sucursalId === "" ? null : Number(formUsuario.sucursalId);
 
       if (usuarioSeleccionado) {
-        await api.put(
-          `/Usuarios/${usuarioSeleccionado.id}`,
-          {
-            nombre,
-            email,
-            rol: formUsuario.rol,
-            sucursalId,
-          }
-        );
-
-        mostrarMensaje(
-          "Usuario actualizado correctamente."
-        );
+        await api.put(`/Usuarios/${usuarioSeleccionado.id}`, {
+          nombre,
+          email,
+          rol: formUsuario.rol,
+          sucursalId,
+        });
+        mostrarMensaje("Usuario actualizado correctamente.");
       } else {
         await api.post("/Usuarios", {
           nombre,
@@ -248,206 +183,113 @@ function Usuarios() {
           rol: formUsuario.rol,
           sucursalId,
         });
-
-        mostrarMensaje(
-          "Usuario creado correctamente."
-        );
+        mostrarMensaje("Usuario creado correctamente.");
       }
 
       setModalActivo(null);
       setUsuarioSeleccionado(null);
-
       await cargarDatos();
     } catch (err) {
       console.error(err);
-
-      setError(
-        obtenerMensajeError(
-          err,
-          "No se pudo guardar el usuario."
-        )
-      );
+      setError(obtenerMensajeError(err, "No se pudo guardar el usuario."));
     } finally {
       setGuardando(false);
     }
   };
 
   const cambiarEstado = async (usuario) => {
+    if (usuario.id === usuarioActualId && usuario.activo) return;
+
     const nuevoEstado = !usuario.activo;
+    const accion = nuevoEstado ? "activar" : "desactivar";
 
-    const accion = nuevoEstado
-      ? "activar"
-      : "desactivar";
-
-    const confirmado = window.confirm(
-      `¿Deseas ${accion} al usuario "${usuario.nombre}"?`
-    );
-
-    if (!confirmado) {
-      return;
-    }
+    if (!window.confirm(`¿Deseas ${accion} al usuario "${usuario.nombre}"?`)) return;
 
     try {
       setError("");
-
-      await api.patch(
-        `/Usuarios/${usuario.id}/estado?activo=${nuevoEstado}`
-      );
-
+      await api.patch(`/Usuarios/${usuario.id}/estado?activo=${nuevoEstado}`);
       mostrarMensaje(
         nuevoEstado
           ? "Usuario activado correctamente."
           : "Usuario desactivado correctamente."
       );
-
       await cargarDatos();
     } catch (err) {
       console.error(err);
-
-      setError(
-        obtenerMensajeError(
-          err,
-          "No se pudo cambiar el estado del usuario."
-        )
-      );
+      setError(obtenerMensajeError(err, "No se pudo cambiar el estado del usuario."));
     }
   };
 
   const cambiarPassword = async (e) => {
     e.preventDefault();
-
     setError("");
 
-    if (!usuarioSeleccionado) {
-      return;
-    }
-
-    if (!formPassword.password) {
-      setError(
-        "Ingresa la nueva contraseña."
-      );
-      return;
-    }
-
+    if (!usuarioSeleccionado) return;
+    if (!formPassword.password) return setError("Ingresa la nueva contraseña.");
     if (formPassword.password.length < 6) {
-      setError(
-        "La contraseña debe tener al menos 6 caracteres."
-      );
-      return;
+      return setError("La contraseña debe tener al menos 6 caracteres.");
     }
-
-    if (
-      formPassword.password !==
-      formPassword.confirmarPassword
-    ) {
-      setError(
-        "Las contraseñas no coinciden."
-      );
-      return;
+    if (formPassword.password !== formPassword.confirmarPassword) {
+      return setError("Las contraseñas no coinciden.");
     }
 
     try {
       setGuardando(true);
-
-      await api.patch(
-        `/Usuarios/${usuarioSeleccionado.id}/password`,
-        {
-          password: formPassword.password,
-        }
-      );
-
+      await api.patch(`/Usuarios/${usuarioSeleccionado.id}/password`, {
+        password: formPassword.password,
+      });
       setModalActivo(null);
       setUsuarioSeleccionado(null);
-
-      mostrarMensaje(
-        "Contraseña actualizada correctamente."
-      );
+      mostrarMensaje("Contraseña actualizada correctamente.");
     } catch (err) {
       console.error(err);
-
-      setError(
-        obtenerMensajeError(
-          err,
-          "No se pudo cambiar la contraseña."
-        )
-      );
+      setError(obtenerMensajeError(err, "No se pudo cambiar la contraseña."));
     } finally {
       setGuardando(false);
     }
   };
 
   const usuariosFiltrados = useMemo(() => {
-    const texto =
-      buscar.trim().toLowerCase();
+    const texto = buscar.trim().toLowerCase();
 
     return usuarios.filter((usuario) => {
       const coincideTexto =
         !texto ||
-        usuario.nombre
-          ?.toLowerCase()
-          .includes(texto) ||
-        usuario.email
-          ?.toLowerCase()
-          .includes(texto) ||
-        usuario.sucursal
-          ?.toLowerCase()
-          .includes(texto);
+        usuario.nombre?.toLowerCase().includes(texto) ||
+        usuario.email?.toLowerCase().includes(texto) ||
+        usuario.sucursal?.toLowerCase().includes(texto);
 
-      const coincideRol =
-        filtroRol === "Todos" ||
-        usuario.rol === filtroRol;
-
+      const coincideRol = filtroRol === "Todos" || usuario.rol === filtroRol;
       const coincideEstado =
         filtroEstado === "Todos" ||
-        (filtroEstado === "Activos" &&
-          usuario.activo) ||
-        (filtroEstado === "Inactivos" &&
-          !usuario.activo);
+        (filtroEstado === "Activos" && usuario.activo) ||
+        (filtroEstado === "Inactivos" && !usuario.activo);
 
-      return (
-        coincideTexto &&
-        coincideRol &&
-        coincideEstado
-      );
+      const coincideSucursal =
+        filtroSucursal === "Todas" ||
+        (filtroSucursal === "SinAsignar" && !usuario.sucursalId) ||
+        String(usuario.sucursalId) === filtroSucursal;
+
+      return coincideTexto && coincideRol && coincideEstado && coincideSucursal;
     });
-  }, [
-    usuarios,
-    buscar,
-    filtroRol,
-    filtroEstado,
-  ]);
+  }, [usuarios, buscar, filtroRol, filtroEstado, filtroSucursal]);
 
-  const totalUsuarios =
-    usuarios.length;
-
-  const usuariosActivos =
-    usuarios.filter((x) => x.activo).length;
-
-  const totalAdmins =
-    usuarios.filter(
-      (x) => x.rol === "Admin" && x.activo
-    ).length;
-
-  const totalCajeros =
-    usuarios.filter(
-      (x) => x.rol === "Cajero" && x.activo
-    ).length;
-
-  const obtenerBadgeRol = (rol) => {
-    switch (rol) {
-      case "Admin":
-        return "bg-dark";
-
-      case "Supervisor":
-        return "bg-primary";
-
-      case "Cajero":
-        return "bg-info text-dark";
-
-      default:
-        return "bg-secondary";
-    }
+  const limpiarFiltros = () => {
+    setBuscar("");
+    setFiltroRol("Todos");
+    setFiltroEstado("Todos");
+    setFiltroSucursal("Todas");
   };
+
+  const totalUsuarios = usuarios.length;
+  const usuariosActivos = usuarios.filter((x) => x.activo).length;
+  const totalAdmins = usuarios.filter((x) => x.rol === "Admin" && x.activo).length;
+  const totalSupervisores = usuarios.filter(
+    (x) => x.rol === "Supervisor" && x.activo
+  ).length;
+  const totalCajeros = usuarios.filter((x) => x.rol === "Cajero" && x.activo).length;
+
+  const obtenerBadgeRol = (rol) => rolesInfo[rol]?.clase || "text-bg-secondary";
 
   if (!esAdmin) {
     return (
@@ -455,8 +297,7 @@ function Usuarios() {
         <div className="container-fluid py-4">
           <div className="alert alert-warning">
             <i className="bi bi-shield-lock me-2"></i>
-            No tienes permisos para administrar
-            usuarios.
+            No tienes permisos para administrar usuarios.
           </div>
         </div>
       </AppLayout>
@@ -465,36 +306,32 @@ function Usuarios() {
 
   return (
     <AppLayout>
-      <div className="container-fluid py-4">
-        {/* ENCABEZADO */}
-
+      <div className="container-fluid py-4 px-0">
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
           <div>
-            <div className="text-secondary small mb-1">
-              Administración
-            </div>
-
-            <h2 className="fw-bold mb-1">
-              Usuarios
-            </h2>
-
+            <div className="text-secondary small mb-1">Administración</div>
+            <h2 className="fw-bold mb-1">Usuarios y permisos</h2>
             <p className="text-secondary mb-0">
-              Administra el acceso de tu equipo al
-              sistema.
+              Controla quién entra al sistema, qué puede hacer y desde qué sucursal opera.
             </p>
           </div>
 
-          <button
-            type="button"
-            className="btn btn-dark"
-            onClick={abrirNuevoUsuario}
-          >
-            <i className="bi bi-person-plus me-2"></i>
-            Nuevo usuario
-          </button>
+          <div className="d-flex gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-dark"
+              onClick={cargarDatos}
+              disabled={cargando}
+            >
+              <i className="bi bi-arrow-clockwise me-2"></i>
+              Actualizar
+            </button>
+            <button type="button" className="btn btn-dark" onClick={abrirNuevoUsuario}>
+              <i className="bi bi-person-plus me-2"></i>
+              Nuevo usuario
+            </button>
+          </div>
         </div>
-
-        {/* MENSAJES */}
 
         {mensaje && (
           <div className="alert alert-success">
@@ -510,167 +347,128 @@ function Usuarios() {
           </div>
         )}
 
-        {/* TARJETAS */}
-
         <div className="row g-3 mb-4">
-          <div className="col-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <div className="text-secondary small">
-                      Usuarios
+          {[
+            ["Usuarios", totalUsuarios, "bi-people", "text-secondary"],
+            ["Activos", usuariosActivos, "bi-person-check", "text-success"],
+            ["Admins", totalAdmins, "bi-shield-check", "text-dark"],
+            ["Supervisores", totalSupervisores, "bi-person-workspace", "text-primary"],
+            ["Cajeros", totalCajeros, "bi-person-badge", "text-info"],
+          ].map(([titulo, valor, icono, clase]) => (
+            <div className="col-6 col-md-4 col-xl" key={titulo}>
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body p-3 p-md-4">
+                  <div className="d-flex justify-content-between align-items-center gap-2">
+                    <div>
+                      <div className="text-secondary small mb-1">{titulo}</div>
+                      <div className="fs-3 fw-bold">{valor}</div>
                     </div>
-
-                    <div className="fs-3 fw-bold">
-                      {totalUsuarios}
-                    </div>
-                  </div>
-
-                  <div className="fs-3 text-secondary">
-                    <i className="bi bi-people"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="col-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <div className="text-secondary small">
-                      Activos
-                    </div>
-
-                    <div className="fs-3 fw-bold">
-                      {usuariosActivos}
-                    </div>
-                  </div>
-
-                  <div className="fs-3 text-success">
-                    <i className="bi bi-person-check"></i>
+                    <i className={`bi ${icono} fs-3 ${clase}`}></i>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          ))}
+        </div>
 
-          <div className="col-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <div className="text-secondary small">
-                      Administradores
-                    </div>
-
-                    <div className="fs-3 fw-bold">
-                      {totalAdmins}
-                    </div>
-                  </div>
-
-                  <div className="fs-3 text-secondary">
-                    <i className="bi bi-shield-check"></i>
-                  </div>
-                </div>
+        <div className="card border-0 shadow-sm mb-4">
+          <div className="card-body p-4">
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <div>
+                <h5 className="fw-bold mb-1">Guía de permisos</h5>
+                <small className="text-secondary">
+                  Usa el rol más limitado que permita realizar el trabajo necesario.
+                </small>
               </div>
+              <span className="badge text-bg-light border">Seguridad por roles</span>
             </div>
-          </div>
 
-          <div className="col-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <div className="text-secondary small">
-                      Cajeros
+            <div className="row g-3">
+              {Object.entries(rolesInfo).map(([rol, info]) => (
+                <div className="col-md-4" key={rol}>
+                  <div className="border rounded-3 p-3 h-100">
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <span className={`badge ${info.clase}`}>
+                        <i className={`bi ${info.icono} me-1`}></i>
+                        {rol}
+                      </span>
+                      <strong>{info.titulo}</strong>
                     </div>
-
-                    <div className="fs-3 fw-bold">
-                      {totalCajeros}
-                    </div>
-                  </div>
-
-                  <div className="fs-3 text-secondary">
-                    <i className="bi bi-person-badge"></i>
+                    <small className="text-secondary">{info.descripcion}</small>
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* LISTADO */}
-
         <div className="card border-0 shadow-sm">
-          <div className="card-body border-bottom">
-            <div className="row g-2">
-              <div className="col-12 col-lg-6">
+          <div className="card-body border-bottom p-4">
+            <div className="row g-3 align-items-end">
+              <div className="col-lg-4">
+                <label className="form-label fw-semibold">Buscar</label>
                 <div className="input-group">
                   <span className="input-group-text bg-white">
                     <i className="bi bi-search"></i>
                   </span>
-
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Buscar por nombre, correo o sucursal..."
+                    placeholder="Nombre, correo o sucursal..."
                     value={buscar}
-                    onChange={(e) =>
-                      setBuscar(e.target.value)
-                    }
+                    onChange={(e) => setBuscar(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="col-6 col-lg-3">
+              <div className="col-6 col-md-4 col-lg-2">
+                <label className="form-label fw-semibold">Rol</label>
                 <select
                   className="form-select"
                   value={filtroRol}
-                  onChange={(e) =>
-                    setFiltroRol(e.target.value)
-                  }
+                  onChange={(e) => setFiltroRol(e.target.value)}
                 >
-                  <option value="Todos">
-                    Todos los roles
-                  </option>
-
-                  <option value="Admin">
-                    Admin
-                  </option>
-
-                  <option value="Supervisor">
-                    Supervisor
-                  </option>
-
-                  <option value="Cajero">
-                    Cajero
-                  </option>
+                  <option value="Todos">Todos</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Supervisor">Supervisor</option>
+                  <option value="Cajero">Cajero</option>
                 </select>
               </div>
 
-              <div className="col-6 col-lg-3">
+              <div className="col-6 col-md-4 col-lg-2">
+                <label className="form-label fw-semibold">Estado</label>
                 <select
                   className="form-select"
                   value={filtroEstado}
-                  onChange={(e) =>
-                    setFiltroEstado(e.target.value)
-                  }
+                  onChange={(e) => setFiltroEstado(e.target.value)}
                 >
-                  <option value="Todos">
-                    Todos
-                  </option>
-
-                  <option value="Activos">
-                    Activos
-                  </option>
-
-                  <option value="Inactivos">
-                    Inactivos
-                  </option>
+                  <option value="Todos">Todos</option>
+                  <option value="Activos">Activos</option>
+                  <option value="Inactivos">Inactivos</option>
                 </select>
+              </div>
+
+              <div className="col-md-4 col-lg-2">
+                <label className="form-label fw-semibold">Sucursal</label>
+                <select
+                  className="form-select"
+                  value={filtroSucursal}
+                  onChange={(e) => setFiltroSucursal(e.target.value)}
+                >
+                  <option value="Todas">Todas</option>
+                  <option value="SinAsignar">Acceso global / sin asignar</option>
+                  {sucursales.map((sucursal) => (
+                    <option key={sucursal.id} value={String(sucursal.id)}>
+                      {sucursal.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-lg-2 d-grid">
+                <button type="button" className="btn btn-outline-secondary" onClick={limpiarFiltros}>
+                  Limpiar filtros
+                </button>
               </div>
             </div>
           </div>
@@ -678,241 +476,170 @@ function Usuarios() {
           <div className="card-body p-0">
             {cargando ? (
               <div className="text-center py-5">
-                <div
-                  className="spinner-border"
-                  role="status"
-                />
-
-                <div className="text-secondary mt-3">
-                  Cargando usuarios...
-                </div>
+                <div className="spinner-border" role="status" />
+                <div className="text-secondary mt-3">Cargando usuarios...</div>
               </div>
             ) : usuariosFiltrados.length === 0 ? (
               <div className="text-center py-5 px-3">
-                <div className="fs-1 text-secondary mb-3">
-                  <i className="bi bi-people"></i>
-                </div>
-
-                <h5>No encontramos usuarios</h5>
-
+                <i className="bi bi-people fs-1 text-secondary"></i>
+                <h5 className="mt-3">No encontramos usuarios</h5>
                 <p className="text-secondary mb-0">
-                  Intenta cambiar los filtros o crea
-                  un nuevo usuario.
+                  Ajusta los filtros o crea un nuevo usuario.
                 </p>
               </div>
             ) : (
               <div className="table-responsive">
-                <table className="table align-middle mb-0">
+                <table className="table table-hover align-middle mb-0">
                   <thead className="table-light">
                     <tr>
-                      <th className="ps-4">
-                        Usuario
-                      </th>
-
+                      <th className="ps-4">Usuario</th>
                       <th>Rol</th>
-
-                      <th>Sucursal</th>
-
+                      <th>Alcance</th>
                       <th>Estado</th>
-
-                      <th className="text-end pe-4">
-                        Acciones
-                      </th>
+                      <th className="text-end pe-4">Acciones</th>
                     </tr>
                   </thead>
-
                   <tbody>
-                    {usuariosFiltrados.map(
-                      (usuario) => (
-                        <tr key={usuario.id}>
-                          <td className="ps-4">
-                            <div className="d-flex align-items-center gap-3">
-                              <div
-                                className="rounded-circle bg-light d-flex align-items-center justify-content-center fw-bold"
-                                style={{
-                                  width: "42px",
-                                  height: "42px",
-                                  minWidth: "42px",
-                                }}
-                              >
-                                {usuario.nombre
-                                  ?.charAt(0)
-                                  .toUpperCase()}
-                              </div>
-
-                              <div>
-                                <div className="fw-semibold">
-                                  {usuario.nombre}
-
-                                  {usuario.id ===
-                                    usuarioActualId && (
-                                    <span className="badge text-bg-light border ms-2">
-                                      Tú
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="text-secondary small">
-                                  {usuario.email}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td>
-                            <span
-                              className={`badge ${obtenerBadgeRol(
-                                usuario.rol
-                              )}`}
+                    {usuariosFiltrados.map((usuario) => (
+                      <tr key={usuario.id}>
+                        <td className="ps-4">
+                          <div className="d-flex align-items-center gap-3">
+                            <div
+                              className="rounded-circle bg-light border d-flex align-items-center justify-content-center fw-bold"
+                              style={{ width: 42, height: 42, minWidth: 42 }}
                             >
-                              {usuario.rol}
-                            </span>
-                          </td>
-
-                          <td>
-                            {usuario.sucursal ? (
-                              <>
+                              {usuario.nombre?.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="fw-semibold">
+                                {usuario.nombre}
+                                {usuario.id === usuarioActualId && (
+                                  <span className="badge text-bg-light border ms-2">Tú</span>
+                                )}
+                              </div>
+                              <div className="text-secondary small">{usuario.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`badge ${obtenerBadgeRol(usuario.rol)}`}>
+                            {usuario.rol}
+                          </span>
+                        </td>
+                        <td>
+                          {usuario.sucursal ? (
+                            <div>
+                              <div className="fw-semibold">
                                 <i className="bi bi-shop me-2 text-secondary"></i>
                                 {usuario.sucursal}
-                              </>
-                            ) : (
-                              <span className="text-secondary">
-                                Todas / Sin asignar
-                              </span>
-                            )}
-                          </td>
-
-                          <td>
-                            {usuario.activo ? (
-                              <span className="badge bg-success-subtle text-success border border-success-subtle">
-                                Activo
-                              </span>
-                            ) : (
-                              <span className="badge bg-secondary-subtle text-secondary border">
-                                Inactivo
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="text-end pe-4">
-                            <div className="d-inline-flex gap-1">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                title="Editar usuario"
-                                onClick={() =>
-                                  abrirEditarUsuario(
-                                    usuario
-                                  )
-                                }
-                              >
-                                <i className="bi bi-pencil"></i>
-                              </button>
-
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                title="Cambiar contraseña"
-                                onClick={() =>
-                                  abrirCambiarPassword(
-                                    usuario
-                                  )
-                                }
-                              >
-                                <i className="bi bi-key"></i>
-                              </button>
-
-                              <button
-                                type="button"
-                                className={
-                                  usuario.activo
-                                    ? "btn btn-sm btn-outline-danger"
-                                    : "btn btn-sm btn-outline-success"
-                                }
-                                title={
-                                  usuario.activo
+                              </div>
+                              <small className="text-secondary">Limitado a esta sucursal</small>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="fw-semibold">
+                                <i className="bi bi-globe2 me-2 text-secondary"></i>
+                                Acceso global
+                              </div>
+                              <small className="text-secondary">Sin sucursal asignada</small>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              usuario.activo
+                                ? "bg-success-subtle text-success border border-success-subtle"
+                                : "bg-secondary-subtle text-secondary border"
+                            }`}
+                          >
+                            {usuario.activo ? "Activo" : "Inactivo"}
+                          </span>
+                        </td>
+                        <td className="text-end pe-4">
+                          <div className="d-inline-flex gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              title="Editar usuario"
+                              onClick={() => abrirEditarUsuario(usuario)}
+                            >
+                              <i className="bi bi-pencil"></i>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              title="Cambiar contraseña"
+                              onClick={() => abrirCambiarPassword(usuario)}
+                            >
+                              <i className="bi bi-key"></i>
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                usuario.activo
+                                  ? "btn btn-sm btn-outline-danger"
+                                  : "btn btn-sm btn-outline-success"
+                              }
+                              title={
+                                usuario.id === usuarioActualId && usuario.activo
+                                  ? "No puedes desactivar tu propia cuenta"
+                                  : usuario.activo
                                     ? "Desactivar"
                                     : "Activar"
-                                }
-                                disabled={
-                                  usuario.id ===
-                                    usuarioActualId &&
+                              }
+                              disabled={usuario.id === usuarioActualId && usuario.activo}
+                              onClick={() => cambiarEstado(usuario)}
+                            >
+                              <i
+                                className={
                                   usuario.activo
+                                    ? "bi bi-person-x"
+                                    : "bi bi-person-check"
                                 }
-                                onClick={() =>
-                                  cambiarEstado(
-                                    usuario
-                                  )
-                                }
-                              >
-                                <i
-                                  className={
-                                    usuario.activo
-                                      ? "bi bi-person-x"
-                                      : "bi bi-person-check"
-                                  }
-                                ></i>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    )}
+                              ></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
 
-          {!cargando &&
-            usuariosFiltrados.length > 0 && (
-              <div className="card-footer bg-white text-secondary small">
-                Mostrando{" "}
-                {usuariosFiltrados.length} de{" "}
-                {usuarios.length} usuarios
-              </div>
-            )}
+          {!cargando && (
+            <div className="card-footer bg-white d-flex flex-wrap justify-content-between gap-2 text-secondary small">
+              <span>
+                Mostrando {usuariosFiltrados.length} de {usuarios.length} usuarios
+              </span>
+              <span>{sucursales.filter((x) => x.activa).length} sucursales activas</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* MODAL CREAR / EDITAR USUARIO */}
-
       {modalActivo === "usuario" && (
-        <div
-          className="modal d-block"
-          tabIndex="-1"
-          style={{
-            backgroundColor:
-              "rgba(0, 0, 0, 0.5)",
-          }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,.5)" }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content border-0 shadow">
               <form onSubmit={guardarUsuario}>
                 <div className="modal-header">
                   <div>
                     <h5 className="modal-title fw-bold">
-                      {usuarioSeleccionado
-                        ? "Editar usuario"
-                        : "Nuevo usuario"}
+                      {usuarioSeleccionado ? "Editar usuario" : "Nuevo usuario"}
                     </h5>
-
                     <div className="text-secondary small">
                       {usuarioSeleccionado
-                        ? "Actualiza la información y permisos."
-                        : "Crea un nuevo acceso para tu equipo."}
+                        ? "Actualiza identidad, permisos y alcance."
+                        : "Crea un acceso para un miembro del equipo."}
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={cerrarModal}
-                    disabled={guardando}
-                  />
+                  <button type="button" className="btn-close" onClick={cerrarModal} disabled={guardando} />
                 </div>
 
-                <div className="modal-body">
+                <div className="modal-body p-4">
                   {error && (
                     <div className="alert alert-danger">
                       <i className="bi bi-exclamation-circle me-2"></i>
@@ -920,141 +647,72 @@ function Usuarios() {
                     </div>
                   )}
 
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Nombre completo
-                    </label>
-
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Ej. María Rodríguez"
-                      value={formUsuario.nombre}
-                      onChange={(e) =>
-                        setFormUsuario({
-                          ...formUsuario,
-                          nombre: e.target.value,
-                        })
-                      }
-                      disabled={guardando}
-                    />
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Correo electrónico
-                    </label>
-
-                    <input
-                      type="email"
-                      className="form-control"
-                      placeholder="usuario@empresa.com"
-                      value={formUsuario.email}
-                      onChange={(e) =>
-                        setFormUsuario({
-                          ...formUsuario,
-                          email: e.target.value,
-                        })
-                      }
-                      disabled={guardando}
-                    />
-                  </div>
-
-                  {!usuarioSeleccionado && (
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Contraseña
-                      </label>
-
-                      <input
-                        type="password"
-                        className="form-control"
-                        placeholder="Mínimo 6 caracteres"
-                        value={
-                          formUsuario.password
-                        }
-                        onChange={(e) =>
-                          setFormUsuario({
-                            ...formUsuario,
-                            password:
-                              e.target.value,
-                          })
-                        }
-                        disabled={guardando}
-                      />
-
-                      <div className="form-text">
-                        El usuario podrá cambiarla
-                        posteriormente si agregamos esa
-                        opción a su perfil.
-                      </div>
-                    </div>
-                  )}
-
                   <div className="row g-3">
                     <div className="col-md-6">
-                      <label className="form-label">
-                        Rol
-                      </label>
+                      <label className="form-label fw-semibold">Nombre completo</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Ej. María Rodríguez"
+                        value={formUsuario.nombre}
+                        onChange={(e) => setFormUsuario({ ...formUsuario, nombre: e.target.value })}
+                        disabled={guardando}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Correo electrónico</label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        placeholder="usuario@empresa.com"
+                        value={formUsuario.email}
+                        onChange={(e) => setFormUsuario({ ...formUsuario, email: e.target.value })}
+                        disabled={guardando}
+                      />
+                    </div>
 
+                    {!usuarioSeleccionado && (
+                      <div className="col-12">
+                        <label className="form-label fw-semibold">Contraseña inicial</label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          placeholder="Mínimo 6 caracteres"
+                          value={formUsuario.password}
+                          onChange={(e) => setFormUsuario({ ...formUsuario, password: e.target.value })}
+                          disabled={guardando}
+                        />
+                      </div>
+                    )}
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Rol</label>
                       <select
                         className="form-select"
                         value={formUsuario.rol}
-                        onChange={(e) =>
-                          setFormUsuario({
-                            ...formUsuario,
-                            rol: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setFormUsuario({ ...formUsuario, rol: e.target.value })}
                         disabled={guardando}
                       >
-                        <option value="Admin">
-                          Admin
-                        </option>
-
-                        <option value="Supervisor">
-                          Supervisor
-                        </option>
-
-                        <option value="Cajero">
-                          Cajero
-                        </option>
+                        <option value="Admin">Admin</option>
+                        <option value="Supervisor">Supervisor</option>
+                        <option value="Cajero">Cajero</option>
                       </select>
                     </div>
 
                     <div className="col-md-6">
-                      <label className="form-label">
-                        Sucursal
-                      </label>
-
+                      <label className="form-label fw-semibold">Sucursal</label>
                       <select
                         className="form-select"
-                        value={
-                          formUsuario.sucursalId
-                        }
-                        onChange={(e) =>
-                          setFormUsuario({
-                            ...formUsuario,
-                            sucursalId:
-                              e.target.value,
-                          })
-                        }
+                        value={formUsuario.sucursalId}
+                        onChange={(e) => setFormUsuario({ ...formUsuario, sucursalId: e.target.value })}
                         disabled={guardando}
                       >
-                        <option value="">
-                          Sin asignar
-                        </option>
-
+                        <option value="">Acceso global / sin asignar</option>
                         {sucursales
-                          .filter(
-                            (sucursal) =>
-                              sucursal.activa
-                          )
+                          .filter((sucursal) => sucursal.activa)
                           .map((sucursal) => (
-                            <option
-                              key={sucursal.id}
-                              value={sucursal.id}
-                            >
+                            <option key={sucursal.id} value={sucursal.id}>
                               {sucursal.nombre}
                             </option>
                           ))}
@@ -1063,37 +721,28 @@ function Usuarios() {
                   </div>
 
                   <div className="alert alert-light border mt-4 mb-0">
-                    <div className="d-flex gap-2">
-                      <i className="bi bi-info-circle text-secondary"></i>
-
-                      <small className="text-secondary">
-                        <strong>Admin:</strong>{" "}
-                        administración del comercio.{" "}
-                        <strong>Supervisor:</strong>{" "}
-                        operaciones y supervisión.{" "}
-                        <strong>Cajero:</strong>{" "}
-                        operación diaria del punto de
-                        venta.
-                      </small>
+                    <div className="d-flex gap-3 align-items-start">
+                      <i className={`bi ${rolesInfo[formUsuario.rol]?.icono} fs-4`}></i>
+                      <div>
+                        <strong>{rolesInfo[formUsuario.rol]?.titulo}</strong>
+                        <div className="text-secondary small mt-1">
+                          {rolesInfo[formUsuario.rol]?.descripcion}
+                        </div>
+                        <div className="text-secondary small mt-2">
+                          {formUsuario.sucursalId
+                            ? "Este usuario quedará restringido a la sucursal seleccionada."
+                            : "Sin sucursal asignada, el usuario tendrá alcance global dentro de los permisos de su rol."}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-light"
-                    onClick={cerrarModal}
-                    disabled={guardando}
-                  >
+                  <button type="button" className="btn btn-light" onClick={cerrarModal} disabled={guardando}>
                     Cancelar
                   </button>
-
-                  <button
-                    type="submit"
-                    className="btn btn-dark"
-                    disabled={guardando}
-                  >
+                  <button type="submit" className="btn btn-dark" disabled={guardando}>
                     {guardando ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-2"></span>
@@ -1102,10 +751,7 @@ function Usuarios() {
                     ) : (
                       <>
                         <i className="bi bi-check-lg me-2"></i>
-
-                        {usuarioSeleccionado
-                          ? "Guardar cambios"
-                          : "Crear usuario"}
+                        {usuarioSeleccionado ? "Guardar cambios" : "Crear usuario"}
                       </>
                     )}
                   </button>
@@ -1116,129 +762,76 @@ function Usuarios() {
         </div>
       )}
 
-      {/* MODAL CAMBIAR PASSWORD */}
+      {modalActivo === "password" && usuarioSeleccionado && (
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow">
+              <form onSubmit={cambiarPassword}>
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title fw-bold">Cambiar contraseña</h5>
+                    <div className="text-secondary small">{usuarioSeleccionado.nombre}</div>
+                  </div>
+                  <button type="button" className="btn-close" onClick={cerrarModal} disabled={guardando} />
+                </div>
 
-      {modalActivo === "password" &&
-        usuarioSeleccionado && (
-          <div
-            className="modal d-block"
-            tabIndex="-1"
-            style={{
-              backgroundColor:
-                "rgba(0, 0, 0, 0.5)",
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content border-0 shadow">
-                <form onSubmit={cambiarPassword}>
-                  <div className="modal-header">
-                    <div>
-                      <h5 className="modal-title fw-bold">
-                        Cambiar contraseña
-                      </h5>
-
-                      <div className="text-secondary small">
-                        {usuarioSeleccionado.nombre}
-                      </div>
+                <div className="modal-body p-4">
+                  {error && (
+                    <div className="alert alert-danger">
+                      <i className="bi bi-exclamation-circle me-2"></i>
+                      {error}
                     </div>
+                  )}
 
-                    <button
-                      type="button"
-                      className="btn-close"
-                      onClick={cerrarModal}
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Nueva contraseña</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="Mínimo 6 caracteres"
+                      value={formPassword.password}
+                      onChange={(e) => setFormPassword({ ...formPassword, password: e.target.value })}
                       disabled={guardando}
+                      autoFocus
                     />
                   </div>
 
-                  <div className="modal-body">
-                    {error && (
-                      <div className="alert alert-danger">
-                        <i className="bi bi-exclamation-circle me-2"></i>
-                        {error}
-                      </div>
+                  <div>
+                    <label className="form-label fw-semibold">Confirmar contraseña</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="Repite la contraseña"
+                      value={formPassword.confirmarPassword}
+                      onChange={(e) => setFormPassword({ ...formPassword, confirmarPassword: e.target.value })}
+                      disabled={guardando}
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-light" onClick={cerrarModal} disabled={guardando}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-dark" disabled={guardando}>
+                    {guardando ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-key me-2"></i>
+                        Cambiar contraseña
+                      </>
                     )}
-
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Nueva contraseña
-                      </label>
-
-                      <input
-                        type="password"
-                        className="form-control"
-                        placeholder="Mínimo 6 caracteres"
-                        value={
-                          formPassword.password
-                        }
-                        onChange={(e) =>
-                          setFormPassword({
-                            ...formPassword,
-                            password:
-                              e.target.value,
-                          })
-                        }
-                        disabled={guardando}
-                        autoFocus
-                      />
-                    </div>
-
-                    <div>
-                      <label className="form-label">
-                        Confirmar contraseña
-                      </label>
-
-                      <input
-                        type="password"
-                        className="form-control"
-                        placeholder="Repite la contraseña"
-                        value={
-                          formPassword.confirmarPassword
-                        }
-                        onChange={(e) =>
-                          setFormPassword({
-                            ...formPassword,
-                            confirmarPassword:
-                              e.target.value,
-                          })
-                        }
-                        disabled={guardando}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn btn-light"
-                      onClick={cerrarModal}
-                      disabled={guardando}
-                    >
-                      Cancelar
-                    </button>
-
-                    <button
-                      type="submit"
-                      className="btn btn-dark"
-                      disabled={guardando}
-                    >
-                      {guardando ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-2"></span>
-                          Guardando...
-                        </>
-                      ) : (
-                        <>
-                          <i className="bi bi-key me-2"></i>
-                          Cambiar contraseña
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </AppLayout>
   );
 }
