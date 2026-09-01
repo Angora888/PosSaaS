@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using PosSaaS.Api.Data;
-using PosSaaS.Api.Models;
 using PosSaaS.Api.Services;
 using System.Text;
 
@@ -14,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 // =====================================================
 
 builder.Services.AddControllers();
+
 
 // =====================================================
 // DATABASE
@@ -30,9 +30,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString);
 });
 
+
 // =====================================================
 // CORS
 // =====================================================
+
+// Orígenes configurados desde appsettings o variables de entorno.
+//
+// Azure:
+// Cors__AllowedOrigins__0=https://tu-app.vercel.app
+//
+// Localhost se mantiene permitido para desarrollo.
 
 var configuredOrigins =
     builder.Configuration
@@ -56,12 +64,15 @@ builder.Services.AddCors(options =>
     });
 });
 
+
 // =====================================================
 // TENANT CONTEXT
 // =====================================================
 
 builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+
 
 // =====================================================
 // JWT
@@ -96,17 +107,21 @@ builder.Services
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
+
                 ValidIssuer = jwtIssuer,
                 ValidAudience = jwtAudience,
+
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(jwtKey)
                     ),
+
                 ClockSkew = TimeSpan.Zero
             };
     });
 
 builder.Services.AddAuthorization();
+
 
 // =====================================================
 // SWAGGER
@@ -142,33 +157,28 @@ builder.Services.AddSwaggerGen(options =>
     );
 });
 
+
 // =====================================================
 // BUILD
 // =====================================================
 
 var app = builder.Build();
 
-// =====================================================
-// SUPERADMIN BOOTSTRAP
-// =====================================================
-//
-// No existe un endpoint HTTP para crear SuperAdmins.
-// La cuenta maestra se provisiona únicamente cuando las variables
-// SuperAdmin__Email y SuperAdmin__Password existen en la configuración
-// segura del servidor (por ejemplo, Azure App Settings).
-//
-// Si el correo ya pertenece a un usuario, se actualiza esa cuenta a
-// SuperAdmin y se mantiene su TenantId actual. Esto evita migraciones y
-// aprovecha el modelo existente.
-
-await ProvisionSuperAdminAsync(app);
 
 // =====================================================
 // SWAGGER
 // =====================================================
 
+// Lo dejamos disponible también en Azure por ahora
+// para poder probar la API una vez desplegada.
+//
+// Más adelante podemos restringirlo solamente
+// a Development.
+
 app.UseSwagger();
+
 app.UseSwaggerUI();
+
 
 // =====================================================
 // MIDDLEWARE
@@ -179,9 +189,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// CORS debe ejecutarse antes de Authentication y Authorization.
+
 app.UseCors("Frontend");
+
 app.UseAuthentication();
+
 app.UseAuthorization();
+
 
 // =====================================================
 // ENDPOINTS
@@ -189,104 +204,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+
 // =====================================================
 // RUN
 // =====================================================
 
 app.Run();
-
-static async Task ProvisionSuperAdminAsync(WebApplication app)
-{
-    var email = app.Configuration["SuperAdmin:Email"]?.Trim().ToLowerInvariant();
-    var password = app.Configuration["SuperAdmin:Password"];
-    var nombre = app.Configuration["SuperAdmin:Nombre"]?.Trim();
-
-    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-    {
-        app.Logger.LogInformation(
-            "SuperAdmin bootstrap omitido: no hay credenciales configuradas."
-        );
-        return;
-    }
-
-    if (password.Length < 12)
-    {
-        app.Logger.LogError(
-            "SuperAdmin bootstrap omitido: SuperAdmin:Password debe tener al menos 12 caracteres."
-        );
-        return;
-    }
-
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    try
-    {
-        var usuario = await db.Usuarios
-            .Include(x => x.Tenant)
-            .FirstOrDefaultAsync(x => x.Email == email);
-
-        if (usuario == null)
-        {
-            app.Logger.LogError(
-                "SuperAdmin bootstrap omitido: el correo configurado no pertenece a un usuario existente. Primero crea una cuenta Admin normal y usa ese mismo correo en SuperAdmin:Email."
-            );
-            return;
-        }
-
-        var cambios = false;
-
-        if (!string.Equals(usuario.Rol, "SuperAdmin", StringComparison.Ordinal))
-        {
-            usuario.Rol = "SuperAdmin";
-            cambios = true;
-        }
-
-        if (!usuario.Activo)
-        {
-            usuario.Activo = true;
-            cambios = true;
-        }
-
-        if (!usuario.Tenant.Activo)
-        {
-            usuario.Tenant.Activo = true;
-            cambios = true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(nombre) && usuario.Nombre != nombre)
-        {
-            usuario.Nombre = nombre;
-            cambios = true;
-        }
-
-        if (!BCrypt.Net.BCrypt.Verify(password, usuario.PasswordHash))
-        {
-            usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
-            cambios = true;
-        }
-
-        if (cambios)
-        {
-            await db.SaveChangesAsync();
-            app.Logger.LogInformation(
-                "Cuenta SuperAdmin provisionada correctamente para {Email}.",
-                email
-            );
-        }
-        else
-        {
-            app.Logger.LogInformation(
-                "La cuenta SuperAdmin {Email} ya estaba provisionada.",
-                email
-            );
-        }
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(
-            ex,
-            "No fue posible provisionar la cuenta SuperAdmin."
-        );
-    }
-}
