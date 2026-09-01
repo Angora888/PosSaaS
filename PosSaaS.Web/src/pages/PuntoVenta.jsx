@@ -34,6 +34,7 @@ function PuntoVenta() {
   const [metodoPagoSeleccionado, setMetodoPagoSeleccionado] = useState("");
   const [montoRecibido, setMontoRecibido] = useState("");
 
+  const [mostrarCarritoMovil, setMostrarCarritoMovil] = useState(false);
   const [mostrarModalPago, setMostrarModalPago] = useState(false);
   const [ticket, setTicket] = useState(null);
 
@@ -44,11 +45,11 @@ function PuntoVenta() {
   }, []);
 
   useEffect(() => {
-    if (!mostrarModalPago && !ticket) {
+    if (!mostrarModalPago && !ticket && !mostrarCarritoMovil) {
       const timer = setTimeout(() => inputCodigoRef.current?.focus(), 100);
       return () => clearTimeout(timer);
     }
-  }, [mostrarModalPago, ticket]);
+  }, [mostrarModalPago, ticket, mostrarCarritoMovil]);
 
   const cargarInicial = async () => {
     await Promise.all([
@@ -107,7 +108,6 @@ function PuntoVenta() {
     } catch (err) {
       console.error(err);
       setSesionCaja(null);
-
       if (err.response?.status !== 404) {
         setErrorCaja("No fue posible consultar la sesión de caja.");
       }
@@ -154,7 +154,6 @@ function PuntoVenta() {
       const response = await api.get("/MetodosPago");
       const activos = (response.data || []).filter((metodo) => metodo.activo);
       setMetodosPago(activos);
-
       if (activos.length > 0) {
         setMetodoPagoSeleccionado(String(activos[0].id));
       }
@@ -201,7 +200,6 @@ function PuntoVenta() {
 
     setCarrito((actual) => {
       const existe = actual.find((item) => Number(item.id) === Number(producto.id));
-
       if (existe) {
         return actual.map((item) =>
           Number(item.id) === Number(producto.id)
@@ -231,9 +229,10 @@ function PuntoVenta() {
     if (!item) return;
 
     const nuevaCantidad = Number(item.cantidad) + cambio;
-
     if (nuevaCantidad <= 0) {
-      setCarrito((actual) => actual.filter((x) => Number(x.id) !== Number(productoId)));
+      setCarrito((actual) =>
+        actual.filter((x) => Number(x.id) !== Number(productoId))
+      );
       return;
     }
 
@@ -274,7 +273,6 @@ function PuntoVenta() {
     setMensajeCodigo("");
 
     if (!cajaId) return;
-
     const caja = cajas.find((item) => Number(item.id) === Number(cajaId));
     if (!caja) return;
 
@@ -297,7 +295,9 @@ function PuntoVenta() {
     try {
       setProcesandoCodigo(true);
       setMensajeCodigo("");
-      const response = await api.get(`/Productos/codigo/${encodeURIComponent(codigo)}`);
+      const response = await api.get(
+        `/Productos/codigo/${encodeURIComponent(codigo)}`
+      );
       const productoApi = response.data;
       const producto =
         productos.find((item) => Number(item.id) === Number(productoApi.id)) ||
@@ -322,11 +322,9 @@ function PuntoVenta() {
 
   const productosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
-
     return productos.filter((producto) => {
       if (!producto.activo) return false;
       if (!texto) return true;
-
       return (
         producto.nombre?.toLowerCase().includes(texto) ||
         producto.sku?.toLowerCase().includes(texto) ||
@@ -339,7 +337,6 @@ function PuntoVenta() {
   const clientesFiltrados = useMemo(() => {
     const texto = busquedaCliente.trim().toLowerCase();
     if (!texto) return clientes;
-
     return clientes.filter(
       (cliente) =>
         cliente.nombre?.toLowerCase().includes(texto) ||
@@ -363,6 +360,11 @@ function PuntoVenta() {
     return { subtotal, impuesto, total: subtotal + impuesto };
   }, [carrito]);
 
+  const totalUnidades = useMemo(
+    () => carrito.reduce((total, item) => total + Number(item.cantidad), 0),
+    [carrito]
+  );
+
   const metodoPagoActual = useMemo(
     () =>
       metodosPago.find(
@@ -373,9 +375,7 @@ function PuntoVenta() {
 
   const esEfectivo = metodoPagoActual?.tipo?.toUpperCase() === "EFECTIVO";
   const recibidoNumero = Number(montoRecibido) || 0;
-  const cambio = esEfectivo
-    ? Math.max(0, recibidoNumero - resumen.total)
-    : 0;
+  const cambio = esEfectivo ? Math.max(0, recibidoNumero - resumen.total) : 0;
   const efectivoInsuficiente = esEfectivo && recibidoNumero < resumen.total;
 
   const formatearColones = (monto) =>
@@ -399,12 +399,12 @@ function PuntoVenta() {
 
     if (!sesionCaja) {
       setErrorVenta("La caja seleccionada no tiene una sesión abierta.");
-      return;
+      return false;
     }
 
     if (carrito.length === 0) {
       setErrorVenta("Agrega al menos un producto al carrito.");
-      return;
+      return false;
     }
 
     for (const item of carrito) {
@@ -413,14 +413,15 @@ function PuntoVenta() {
         setErrorVenta(
           `No hay suficiente stock de ${item.nombre}. Disponible: ${stock}.`
         );
-        return;
+        return false;
       }
     }
 
-    const metodoId = metodoPagoSeleccionado ||
+    const metodoId =
+      metodoPagoSeleccionado ||
       (metodosPago.length > 0 ? String(metodosPago[0].id) : "");
-
     setMetodoPagoSeleccionado(metodoId);
+
     const metodo = metodosPago.find((x) => String(x.id) === String(metodoId));
     setMontoRecibido(
       metodo?.tipo?.toUpperCase() === "EFECTIVO"
@@ -428,6 +429,11 @@ function PuntoVenta() {
         : ""
     );
     setMostrarModalPago(true);
+    return true;
+  };
+
+  const abrirPagoDesdeCarritoMovil = () => {
+    if (abrirModalPago()) setMostrarCarritoMovil(false);
   };
 
   const cerrarModalPago = () => {
@@ -441,12 +447,11 @@ function PuntoVenta() {
     const id = e.target.value;
     setMetodoPagoSeleccionado(id);
     const metodo = metodosPago.find((x) => String(x.id) === String(id));
-
-    if (metodo?.tipo?.toUpperCase() === "EFECTIVO") {
-      setMontoRecibido(String(Math.ceil(resumen.total)));
-    } else {
-      setMontoRecibido("");
-    }
+    setMontoRecibido(
+      metodo?.tipo?.toUpperCase() === "EFECTIVO"
+        ? String(Math.ceil(resumen.total))
+        : ""
+    );
   };
 
   const procesarVenta = async () => {
@@ -522,8 +527,10 @@ function PuntoVenta() {
       setErrorVenta(
         typeof data === "string"
           ? data
-          : data?.mensaje || data?.message || data?.title ||
-            "No fue posible procesar la venta."
+          : data?.mensaje ||
+              data?.message ||
+              data?.title ||
+              "No fue posible procesar la venta."
       );
     } finally {
       setProcesandoVenta(false);
@@ -532,7 +539,6 @@ function PuntoVenta() {
 
   const imprimirTicket = () => {
     if (!ticket) return;
-
     const ventana = window.open("", "_blank", "width=420,height=720");
     if (!ventana) return;
 
@@ -544,61 +550,35 @@ function PuntoVenta() {
       "POS SaaS";
 
     ventana.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>${ticket.numeroVenta || "Ticket"}</title>
-          <style>
-            body { font-family: Arial, sans-serif; width: 300px; margin: 20px auto; color: #111; }
-            h2, p { margin: 0; }
-            .center { text-align: center; }
-            .muted { color: #666; font-size: 12px; }
-            .line { border-top: 1px dashed #999; margin: 12px 0; }
-            .row { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0; }
-            .bold { font-weight: 700; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            td { padding: 4px 0; vertical-align: top; }
-            td:last-child { text-align: right; white-space: nowrap; }
-            @media print { body { margin: 0 auto; } }
-          </style>
-        </head>
-        <body>
-          <div class="center">
-            <h2>${negocio}</h2>
-            <p class="muted">Comprobante de venta</p>
-          </div>
-          <div class="line"></div>
-          <div class="muted">${ticket.numeroVenta || ""}</div>
-          <div class="muted">${formatearFecha(ticket.fecha)}</div>
-          <div class="muted">Cliente: ${ticket.cliente?.nombre || "Consumidor final"}</div>
-          <div class="line"></div>
-          <table>
-            <tbody>
-              ${productosTicket
-                .map(
-                  (p) => `<tr><td>${p.cantidad} x ${p.productoNombre}</td><td>${formatearColones(p.total)}</td></tr>`
-                )
-                .join("")}
-            </tbody>
-          </table>
-          <div class="line"></div>
-          <div class="row"><span>Subtotal</span><span>${formatearColones(ticket.subtotal)}</span></div>
-          <div class="row"><span>IVA</span><span>${formatearColones(ticket.impuesto)}</span></div>
-          <div class="row bold"><span>Total</span><span>${formatearColones(ticket.total)}</span></div>
-          <div class="line"></div>
-          ${pagosTicket
-            .map(
-              (p) => `<div class="row"><span>${p.metodo}</span><span>${formatearColones(p.monto)}</span></div>`
-            )
-            .join("")}
-          ${ticket.recibido != null ? `<div class="row"><span>Recibido</span><span>${formatearColones(ticket.recibido)}</span></div>` : ""}
-          ${ticket.cambio != null ? `<div class="row bold"><span>Cambio</span><span>${formatearColones(ticket.cambio)}</span></div>` : ""}
-          <div class="line"></div>
-          <p class="center muted">¡Gracias por su compra!</p>
-          <script>window.onload = () => { window.print(); };</script>
-        </body>
-      </html>
+      <!doctype html><html><head><meta charset="utf-8" />
+      <title>${ticket.numeroVenta || "Ticket"}</title>
+      <style>
+        body{font-family:Arial,sans-serif;width:300px;margin:20px auto;color:#111}h2,p{margin:0}.center{text-align:center}.muted{color:#666;font-size:12px}.line{border-top:1px dashed #999;margin:12px 0}.row{display:flex;justify-content:space-between;gap:12px;margin:6px 0}.bold{font-weight:700}table{width:100%;border-collapse:collapse;font-size:12px}td{padding:4px 0;vertical-align:top}td:last-child{text-align:right;white-space:nowrap}@media print{body{margin:0 auto}}
+      </style></head><body>
+      <div class="center"><h2>${negocio}</h2><p class="muted">Comprobante de venta</p></div>
+      <div class="line"></div><div class="muted">${ticket.numeroVenta || ""}</div>
+      <div class="muted">${formatearFecha(ticket.fecha)}</div>
+      <div class="muted">Cliente: ${ticket.cliente?.nombre || "Consumidor final"}</div>
+      <div class="line"></div><table><tbody>${productosTicket
+        .map(
+          (p) =>
+            `<tr><td>${p.cantidad} x ${p.productoNombre}</td><td>${formatearColones(p.total)}</td></tr>`
+        )
+        .join("")}</tbody></table>
+      <div class="line"></div>
+      <div class="row"><span>Subtotal</span><span>${formatearColones(ticket.subtotal)}</span></div>
+      <div class="row"><span>IVA</span><span>${formatearColones(ticket.impuesto)}</span></div>
+      <div class="row bold"><span>Total</span><span>${formatearColones(ticket.total)}</span></div>
+      <div class="line"></div>${pagosTicket
+        .map(
+          (p) =>
+            `<div class="row"><span>${p.metodo}</span><span>${formatearColones(p.monto)}</span></div>`
+        )
+        .join("")}
+      ${ticket.recibido != null ? `<div class="row"><span>Recibido</span><span>${formatearColones(ticket.recibido)}</span></div>` : ""}
+      ${ticket.cambio != null ? `<div class="row bold"><span>Cambio</span><span>${formatearColones(ticket.cambio)}</span></div>` : ""}
+      <div class="line"></div><p class="center muted">¡Gracias por su compra!</p>
+      <script>window.onload=()=>window.print();</script></body></html>
     `);
     ventana.document.close();
   };
@@ -607,18 +587,101 @@ function PuntoVenta() {
     (caja) => Number(caja.id) === Number(cajaSeleccionada)
   );
 
+  const renderCarrito = (movil = false) => (
+    <>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 className="fw-bold mb-1">Carrito</h5>
+          <small className="text-secondary">{totalUnidades} unidades</small>
+        </div>
+        {carrito.length > 0 && (
+          <button className="btn btn-sm btn-outline-danger" onClick={limpiarCarrito}>
+            <i className="bi bi-trash me-1"></i>Limpiar
+          </button>
+        )}
+      </div>
+
+      {carrito.length === 0 ? (
+        <div className="text-center py-5 text-secondary">
+          <i className="bi bi-cart3 fs-1"></i>
+          <p className="mt-3 mb-0">Escanea o selecciona productos para comenzar.</p>
+        </div>
+      ) : (
+        <div className="d-flex flex-column gap-3">
+          {carrito.map((item) => {
+            const stock = obtenerStockProducto(item.id);
+            return (
+              <div key={item.id} className="border-bottom pb-3">
+                <div className="d-flex justify-content-between gap-3">
+                  <div className="min-w-0">
+                    <div className="fw-semibold text-break">{item.nombre}</div>
+                    <small className="text-secondary">{formatearColones(item.precio)} c/u</small>
+                  </div>
+                  <button
+                    className="btn btn-sm btn-link text-danger p-0"
+                    onClick={() => eliminarProducto(item.id)}
+                    aria-label={`Eliminar ${item.nombre}`}
+                  >
+                    <i className="bi bi-x-lg"></i>
+                  </button>
+                </div>
+                <div className="d-flex justify-content-between align-items-center mt-2 gap-3">
+                  <div className="btn-group btn-group-sm">
+                    <button className="btn btn-outline-secondary px-3" onClick={() => cambiarCantidad(item.id, -1)}>-</button>
+                    <button className="btn btn-outline-secondary disabled px-3">{item.cantidad}</button>
+                    <button
+                      className="btn btn-outline-secondary px-3"
+                      onClick={() => cambiarCantidad(item.id, 1)}
+                      disabled={Number(item.cantidad) >= stock}
+                    >+</button>
+                  </div>
+                  <strong>{formatearColones(Number(item.precio) * Number(item.cantidad))}</strong>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="border-top mt-4 pt-3">
+        <div className="d-flex justify-content-between mb-2">
+          <span className="text-secondary">Subtotal</span><span>{formatearColones(resumen.subtotal)}</span>
+        </div>
+        <div className="d-flex justify-content-between mb-3">
+          <span className="text-secondary">IVA</span><span>{formatearColones(resumen.impuesto)}</span>
+        </div>
+        <div className="d-flex justify-content-between border-top pt-3">
+          <strong className="fs-5">Total</strong><strong className="fs-4">{formatearColones(resumen.total)}</strong>
+        </div>
+      </div>
+
+      {errorVenta && !mostrarModalPago && (
+        <div className="alert alert-danger py-2 small mt-3">{errorVenta}</div>
+      )}
+
+      <button
+        className="btn btn-dark btn-lg w-100 mt-3"
+        onClick={movil ? abrirPagoDesdeCarritoMovil : abrirModalPago}
+        disabled={carrito.length === 0 || !sesionCaja || cargandoCaja}
+      >
+        <i className="bi bi-credit-card me-2"></i>
+        Cobrar {carrito.length > 0 && formatearColones(resumen.total)}
+      </button>
+    </>
+  );
+
   return (
     <AppLayout>
-      <div className="container-fluid px-0">
-        <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div className="container-fluid px-0 pb-5">
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3 mb-md-4">
           <div>
             <h2 className="fw-bold mb-1">Punto de Venta</h2>
-            <p className="text-secondary mb-0">
+            <p className="text-secondary mb-0 d-none d-md-block">
               Registra ventas, escanea productos y controla el stock en tiempo real.
             </p>
           </div>
 
-          <div style={{ minWidth: "260px" }}>
+          <div className="w-100 w-md-auto" style={{ maxWidth: "360px" }}>
             <label className="form-label fw-semibold mb-1">Caja</label>
             <select
               className="form-select"
@@ -639,19 +702,19 @@ function PuntoVenta() {
         {errorInventario && <div className="alert alert-warning">{errorInventario}</div>}
         {avisoStock && <div className="alert alert-warning">{avisoStock}</div>}
 
-        <div className="row g-4">
+        <div className="row g-3 g-xl-4">
           <div className="col-xl-8">
-            <div className="card border-0 shadow-sm mb-4">
-              <div className="card-body p-4">
-                <div className="d-flex flex-wrap justify-content-between gap-3 mb-3">
+            <div className="card border-0 shadow-sm mb-3 mb-md-4">
+              <div className="card-body p-3 p-md-4">
+                <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
                   <div>
-                    <h5 className="fw-bold mb-1">Escáner de código de barras</h5>
-                    <small className="text-secondary">
+                    <h5 className="fw-bold mb-1">Escáner</h5>
+                    <small className="text-secondary d-none d-sm-block">
                       Escanea el producto o escribe el código y presiona Enter.
                     </small>
                   </div>
                   <span className={`badge ${sesionCaja ? "text-bg-success" : "text-bg-secondary"}`}>
-                    {cargandoCaja ? "Consultando caja..." : sesionCaja ? "Caja abierta" : "Caja sin abrir"}
+                    {cargandoCaja ? "Consultando..." : sesionCaja ? "Caja abierta" : "Caja sin abrir"}
                   </span>
                 </div>
 
@@ -662,7 +725,7 @@ function PuntoVenta() {
                       ref={inputCodigoRef}
                       type="text"
                       className="form-control"
-                      placeholder={cajaSeleccionada ? "Escanea aquí..." : "Primero selecciona una caja"}
+                      placeholder={cajaSeleccionada ? "Escanea aquí..." : "Selecciona una caja"}
                       value={codigoEscaneado}
                       onChange={(e) => setCodigoEscaneado(e.target.value)}
                       disabled={!cajaSeleccionada || procesandoCodigo || cargandoInventario}
@@ -670,10 +733,10 @@ function PuntoVenta() {
                     />
                     <button
                       type="submit"
-                      className="btn btn-dark px-4"
+                      className="btn btn-dark px-3 px-md-4"
                       disabled={!codigoEscaneado.trim() || procesandoCodigo || !cajaSeleccionada}
                     >
-                      {procesandoCodigo ? <span className="spinner-border spinner-border-sm" /> : "Buscar"}
+                      {procesandoCodigo ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-search d-sm-none"></i><span className="d-none d-sm-inline">Buscar</span></>}
                     </button>
                   </div>
                 </form>
@@ -687,28 +750,33 @@ function PuntoVenta() {
                 {cajaActual && (
                   <div className="text-secondary small mt-2">
                     <i className="bi bi-shop me-1"></i>
-                    Caja seleccionada: <strong>{cajaActual.nombre}</strong>
+                    <strong>{cajaActual.nombre}</strong>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="card border-0 shadow-sm">
-              <div className="card-body p-4">
-                <div className="row g-3 align-items-center mb-4">
-                  <div className="col-md-7">
+              <div className="card-body p-3 p-md-4">
+                <div className="row g-2 g-md-3 align-items-center mb-3 mb-md-4">
+                  <div className="col-12 col-md-8">
                     <div className="input-group">
                       <span className="input-group-text bg-white"><i className="bi bi-search"></i></span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Buscar por nombre, SKU o código..."
+                        placeholder="Producto, SKU o código..."
                         value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
                       />
+                      {busqueda && (
+                        <button className="btn btn-outline-secondary" type="button" onClick={() => setBusqueda("")}>
+                          <i className="bi bi-x-lg"></i>
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="col-md-5 text-md-end">
+                  <div className="col-12 col-md-4 text-md-end">
                     <small className="text-secondary">{productosFiltrados.length} productos</small>
                   </div>
                 </div>
@@ -718,31 +786,35 @@ function PuntoVenta() {
                 ) : productosFiltrados.length === 0 ? (
                   <div className="text-center py-5 text-secondary">No encontramos productos.</div>
                 ) : (
-                  <div className="row g-3">
+                  <div className="row g-2 g-md-3">
                     {productosFiltrados.map((producto) => {
                       const stock = obtenerStockProducto(producto.id);
                       const agotado = stock <= 0;
+                      const enCarrito = obtenerCantidadCarrito(producto.id);
 
                       return (
-                        <div className="col-sm-6 col-lg-4" key={producto.id}>
+                        <div className="col-6 col-md-4" key={producto.id}>
                           <button
                             type="button"
                             className="card h-100 w-100 border producto-pos text-start bg-white"
                             onClick={() => agregarProducto(producto)}
                             disabled={!cajaSeleccionada || cargandoInventario || agotado}
                           >
-                            <div className="card-body">
-                              <div className="d-flex justify-content-between gap-2 mb-2">
-                                <span className="badge text-bg-light border">
+                            <div className="card-body p-3">
+                              <div className="d-flex justify-content-between align-items-start gap-1 mb-2">
+                                <span className="badge text-bg-light border text-truncate" style={{ maxWidth: "72%" }}>
                                   {producto.categoria?.nombre || "Producto"}
                                 </span>
-                                <span className={`badge ${agotado ? "text-bg-danger" : "text-bg-success"}`}>
-                                  {agotado ? "AGOTADO" : `Stock: ${stock}`}
-                                </span>
+                                {enCarrito > 0 && <span className="badge text-bg-dark">{enCarrito}</span>}
                               </div>
-                              <h6 className="fw-bold mb-1">{producto.nombre}</h6>
-                              <div className="fw-bold fs-5 mt-3">{formatearColones(producto.precio)}</div>
-                              <small className="text-secondary">+ {producto.impuestoPorcentaje || 0}% IVA</small>
+                              <h6 className="fw-bold mb-1 text-break">{producto.nombre}</h6>
+                              <div className="fw-bold fs-5 mt-2">{formatearColones(producto.precio)}</div>
+                              <div className="d-flex flex-wrap justify-content-between gap-1 mt-2">
+                                <small className="text-secondary">+ {producto.impuestoPorcentaje || 0}% IVA</small>
+                                <small className={agotado ? "text-danger fw-semibold" : "text-success fw-semibold"}>
+                                  {agotado ? "Agotado" : `${stock} disp.`}
+                                </small>
+                              </div>
                             </div>
                           </button>
                         </div>
@@ -754,107 +826,79 @@ function PuntoVenta() {
             </div>
           </div>
 
-          <div className="col-xl-4">
+          <div className="col-xl-4 d-none d-xl-block">
             <div className="card border-0 shadow-sm" style={{ position: "sticky", top: "90px" }}>
-              <div className="card-header bg-white border-0 px-4 pt-4 pb-2">
-                <div className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <h5 className="fw-bold mb-1">Carrito</h5>
-                    <small className="text-secondary">
-                      {carrito.reduce((total, item) => total + Number(item.cantidad), 0)} unidades
-                    </small>
-                  </div>
-                  {carrito.length > 0 && (
-                    <button className="btn btn-sm btn-outline-danger" onClick={limpiarCarrito}>Limpiar</button>
-                  )}
-                </div>
-              </div>
-
-              <div className="card-body px-4">
-                {carrito.length === 0 ? (
-                  <div className="text-center py-5 text-secondary">
-                    <i className="bi bi-cart3 fs-1"></i>
-                    <p className="mt-3 mb-0">Escanea o selecciona productos para comenzar.</p>
-                  </div>
-                ) : (
-                  <div className="d-flex flex-column gap-3">
-                    {carrito.map((item) => {
-                      const stock = obtenerStockProducto(item.id);
-                      return (
-                        <div key={item.id} className="border-bottom pb-3">
-                          <div className="d-flex justify-content-between gap-3">
-                            <div>
-                              <div className="fw-semibold">{item.nombre}</div>
-                              <small className="text-secondary">{formatearColones(item.precio)} c/u</small>
-                            </div>
-                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => eliminarProducto(item.id)}>
-                              <i className="bi bi-x-lg"></i>
-                            </button>
-                          </div>
-                          <div className="d-flex justify-content-between align-items-center mt-2">
-                            <div className="btn-group btn-group-sm">
-                              <button className="btn btn-outline-secondary" onClick={() => cambiarCantidad(item.id, -1)}>-</button>
-                              <button className="btn btn-outline-secondary disabled">{item.cantidad}</button>
-                              <button
-                                className="btn btn-outline-secondary"
-                                onClick={() => cambiarCantidad(item.id, 1)}
-                                disabled={Number(item.cantidad) >= stock}
-                              >+</button>
-                            </div>
-                            <strong>{formatearColones(Number(item.precio) * Number(item.cantidad))}</strong>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="border-top mt-4 pt-3">
-                  <div className="d-flex justify-content-between mb-2">
-                    <span className="text-secondary">Subtotal</span><span>{formatearColones(resumen.subtotal)}</span>
-                  </div>
-                  <div className="d-flex justify-content-between mb-3">
-                    <span className="text-secondary">IVA</span><span>{formatearColones(resumen.impuesto)}</span>
-                  </div>
-                  <div className="d-flex justify-content-between border-top pt-3">
-                    <strong className="fs-5">Total</strong><strong className="fs-4">{formatearColones(resumen.total)}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card-footer bg-white border-0 p-4 pt-0">
-                {errorVenta && !mostrarModalPago && <div className="alert alert-danger py-2 small">{errorVenta}</div>}
-                <button
-                  className="btn btn-dark btn-lg w-100"
-                  onClick={abrirModalPago}
-                  disabled={carrito.length === 0 || !sesionCaja || cargandoCaja}
-                >
-                  <i className="bi bi-credit-card me-2"></i>
-                  Cobrar {carrito.length > 0 && formatearColones(resumen.total)}
-                </button>
-              </div>
+              <div className="card-body p-4">{renderCarrito(false)}</div>
             </div>
           </div>
         </div>
       </div>
 
+      <div
+        className="d-xl-none position-fixed bottom-0 start-0 end-0 bg-white border-top shadow-lg p-2"
+        style={{ zIndex: 1025 }}
+      >
+        <div className="container-fluid px-1">
+          <div className="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-dark flex-grow-1 text-start py-2"
+              onClick={() => setMostrarCarritoMovil(true)}
+            >
+              <div className="d-flex justify-content-between align-items-center gap-2">
+                <span><i className="bi bi-cart3 me-2"></i>{totalUnidades} uds.</span>
+                <strong>{formatearColones(resumen.total)}</strong>
+              </div>
+            </button>
+            <button
+              type="button"
+              className="btn btn-dark py-2 px-3"
+              onClick={abrirModalPago}
+              disabled={carrito.length === 0 || !sesionCaja || cargandoCaja}
+            >
+              Cobrar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {mostrarCarritoMovil && (
+        <>
+          <div className="modal fade show d-block" tabIndex="-1">
+            <div className="modal-dialog modal-dialog-scrollable modal-fullscreen-lg-down">
+              <div className="modal-content border-0">
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title fw-bold">Tu venta</h5>
+                    <small className="text-secondary">Revisa cantidades antes de cobrar.</small>
+                  </div>
+                  <button className="btn-close" onClick={() => setMostrarCarritoMovil(false)} />
+                </div>
+                <div className="modal-body p-3 p-md-4">{renderCarrito(true)}</div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show"></div>
+        </>
+      )}
+
       {mostrarModalPago && (
         <>
           <div className="modal fade show d-block" tabIndex="-1">
-            <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
               <div className="modal-content border-0 shadow">
                 <div className="modal-header">
                   <div>
                     <h5 className="modal-title fw-bold">Cobrar venta</h5>
-                    <small className="text-secondary">Selecciona cliente y método de pago.</small>
+                    <small className="text-secondary">Cliente y método de pago.</small>
                   </div>
                   <button className="btn-close" onClick={cerrarModalPago} disabled={procesandoVenta} />
                 </div>
 
-                <div className="modal-body p-4">
+                <div className="modal-body p-3 p-md-4">
                   {errorVenta && <div className="alert alert-danger">{errorVenta}</div>}
 
-                  <div className="row g-4">
+                  <div className="row g-3 g-md-4">
                     <div className="col-md-6">
                       <label className="form-label fw-semibold">Cliente</label>
                       <input
@@ -896,11 +940,27 @@ function PuntoVenta() {
                               type="number"
                               min="0"
                               step="1"
+                              inputMode="numeric"
                               className={`form-control ${efectivoInsuficiente ? "is-invalid" : ""}`}
                               value={montoRecibido}
                               onChange={(e) => setMontoRecibido(e.target.value)}
                               autoFocus
                             />
+                          </div>
+
+                          <div className="d-flex flex-wrap gap-2 mt-2">
+                            {[resumen.total, Math.ceil(resumen.total / 1000) * 1000, Math.ceil(resumen.total / 5000) * 5000]
+                              .filter((valor, index, arr) => arr.indexOf(valor) === index)
+                              .map((valor) => (
+                                <button
+                                  type="button"
+                                  key={valor}
+                                  className="btn btn-sm btn-outline-secondary"
+                                  onClick={() => setMontoRecibido(String(Math.ceil(valor)))}
+                                >
+                                  {formatearColones(valor)}
+                                </button>
+                              ))}
                           </div>
 
                           <div className={`rounded-3 p-3 mt-3 ${efectivoInsuficiente ? "bg-danger-subtle" : "bg-success-subtle"}`}>
@@ -925,7 +985,7 @@ function PuntoVenta() {
                   </div>
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer d-grid d-sm-flex gap-2">
                   <button className="btn btn-outline-secondary" onClick={cerrarModalPago} disabled={procesandoVenta}>Cancelar</button>
                   <button
                     className="btn btn-dark px-4"
@@ -935,7 +995,7 @@ function PuntoVenta() {
                     {procesandoVenta ? (
                       <><span className="spinner-border spinner-border-sm me-2" />Procesando...</>
                     ) : (
-                      <><i className="bi bi-check-lg me-2"></i>Confirmar venta</>
+                      <><i className="bi bi-check-lg me-2"></i>Confirmar {formatearColones(resumen.total)}</>
                     )}
                   </button>
                 </div>
@@ -949,20 +1009,19 @@ function PuntoVenta() {
       {ticket && (
         <>
           <div className="modal fade show d-block" tabIndex="-1">
-            <div className="modal-dialog modal-md modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-dialog modal-md modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
               <div className="modal-content border-0 shadow">
                 <div className="modal-header">
                   <div>
                     <h5 className="modal-title fw-bold">
-                      <i className="bi bi-check-circle-fill text-success me-2"></i>
-                      Venta completada
+                      <i className="bi bi-check-circle-fill text-success me-2"></i>Venta completada
                     </h5>
                     <small className="text-secondary">{ticket.numeroVenta}</small>
                   </div>
                   <button className="btn-close" onClick={() => setTicket(null)} />
                 </div>
 
-                <div className="modal-body p-4">
+                <div className="modal-body p-3 p-md-4">
                   <div className="text-center mb-4">
                     <div className="fw-bold fs-4">
                       {localStorage.getItem("nombreComercial") || localStorage.getItem("comercio") || "POS SaaS"}
@@ -970,9 +1029,9 @@ function PuntoVenta() {
                     <small className="text-secondary">{formatearFecha(ticket.fecha)}</small>
                   </div>
 
-                  <div className="d-flex justify-content-between mb-3">
+                  <div className="d-flex justify-content-between mb-3 gap-3">
                     <span className="text-secondary">Cliente</span>
-                    <strong>{ticket.cliente?.nombre || "Consumidor final"}</strong>
+                    <strong className="text-end">{ticket.cliente?.nombre || "Consumidor final"}</strong>
                   </div>
 
                   <div className="border-top border-bottom py-3 mb-3">
@@ -994,7 +1053,6 @@ function PuntoVenta() {
                         <span>{pago.metodo}</span><strong>{formatearColones(pago.monto)}</strong>
                       </div>
                     ))}
-
                     {ticket.recibido != null && (
                       <>
                         <div className="d-flex justify-content-between mb-2"><span>Recibido</span><span>{formatearColones(ticket.recibido)}</span></div>
@@ -1004,7 +1062,7 @@ function PuntoVenta() {
                   </div>
                 </div>
 
-                <div className="modal-footer d-flex justify-content-between">
+                <div className="modal-footer d-grid d-sm-flex gap-2">
                   <button className="btn btn-outline-secondary" onClick={() => setTicket(null)}>Nueva venta</button>
                   <button className="btn btn-dark" onClick={imprimirTicket}>
                     <i className="bi bi-printer me-2"></i>Imprimir ticket
