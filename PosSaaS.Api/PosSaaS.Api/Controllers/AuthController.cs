@@ -5,6 +5,7 @@ using PosSaaS.Api.Data;
 using PosSaaS.Api.DTOs;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace PosSaaS.Api.Controllers
@@ -136,6 +137,75 @@ namespace PosSaaS.Api.Controllers
                     nombreComercial
                 }
             });
+        }
+
+        [HttpPost("recover-admin")]
+        public async Task<IActionResult> RecoverAdmin(
+            [FromHeader(Name = "X-Recovery-Key")] string? recoveryKey,
+            RecoverAdminDto dto)
+        {
+            var configuredKey = _configuration["AccountRecovery:Key"];
+
+            if (string.IsNullOrWhiteSpace(configuredKey))
+                return NotFound();
+
+            if (configuredKey.Length < 32)
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "La recuperación de cuenta no está configurada correctamente."
+                );
+
+            if (string.IsNullOrWhiteSpace(recoveryKey) ||
+                !SecureEquals(recoveryKey, configuredKey))
+            {
+                return Unauthorized("Clave de recuperación inválida.");
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("El email es obligatorio.");
+
+            if (string.IsNullOrWhiteSpace(dto.NuevaPassword) ||
+                dto.NuevaPassword.Length < 8)
+            {
+                return BadRequest(
+                    "La nueva contraseña debe tener al menos 8 caracteres."
+                );
+            }
+
+            var email = dto.Email.Trim().ToLower();
+
+            var usuario = await _context.Usuarios
+                .Include(x => x.Tenant)
+                .FirstOrDefaultAsync(x => x.Email == email);
+
+            if (usuario == null)
+                return NotFound("Usuario no encontrado.");
+
+            usuario.Rol = "Admin";
+            usuario.Activo = true;
+            usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NuevaPassword);
+
+            if (!usuario.Tenant.Activo)
+                usuario.Tenant.Activo = true;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = "Cuenta Admin recuperada correctamente.",
+                usuario.Email,
+                usuario.Rol,
+                usuario.Activo
+            });
+        }
+
+        private static bool SecureEquals(string value1, string value2)
+        {
+            var bytes1 = Encoding.UTF8.GetBytes(value1);
+            var bytes2 = Encoding.UTF8.GetBytes(value2);
+
+            return bytes1.Length == bytes2.Length &&
+                   CryptographicOperations.FixedTimeEquals(bytes1, bytes2);
         }
     }
 }
