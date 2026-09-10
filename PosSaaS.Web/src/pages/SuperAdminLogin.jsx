@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 
-function Login() {
+function SuperAdminLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +35,7 @@ function Login() {
     try {
       setCargando(true);
 
-      const response = await api.post("/Auth/login", {
+      const response = await api.post("/PlatformAuth/login", {
         email: email.trim(),
         password,
       });
@@ -47,68 +47,38 @@ function Login() {
         return;
       }
 
-      const usuario = data.usuario;
-      const rolesPermitidos = ["Admin", "Supervisor", "Cajero"];
-
-      if (!rolesPermitidos.includes(usuario.rol)) {
+      if (data.usuario.rol !== "SuperAdmin") {
         limpiarSesion();
-        setError("Esta cuenta no pertenece al acceso de comercios.");
+        setError("La cuenta no tiene permisos de SuperAdmin.");
         return;
       }
 
       limpiarSesion();
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("rol", data.usuario.rol);
+      localStorage.setItem("userType", "platform");
 
-      if (usuario.id !== undefined) {
-        localStorage.setItem("usuarioId", usuario.id);
+      if (data.usuario.id !== undefined) {
+        localStorage.setItem("platformUserId", data.usuario.id);
       }
 
-      if (usuario.nombre) {
-        localStorage.setItem("nombre", usuario.nombre);
+      if (data.usuario.nombre) {
+        localStorage.setItem("nombre", data.usuario.nombre);
       }
 
-      if (usuario.email) {
-        localStorage.setItem("email", usuario.email);
+      if (data.usuario.email) {
+        localStorage.setItem("email", data.usuario.email);
       }
 
-      if (usuario.rol) {
-        localStorage.setItem("rol", usuario.rol);
-      }
-
-      if (usuario.tenantId !== undefined) {
-        localStorage.setItem("tenantId", usuario.tenantId);
-      }
-
-      if (
-        usuario.sucursalId !== undefined &&
-        usuario.sucursalId !== null
-      ) {
-        localStorage.setItem("sucursalId", usuario.sucursalId);
-      }
-
-      if (usuario.comercio) {
-        localStorage.setItem("comercio", usuario.comercio);
-      }
-
-      if (usuario.nombreComercial) {
-        localStorage.setItem(
-          "nombreComercial",
-          usuario.nombreComercial
-        );
-      }
-
-      localStorage.setItem("userType", "tenant");
-
-      navigate("/dashboard", { replace: true });
+      navigate("/superadmin", { replace: true });
     } catch (err) {
       console.error(err);
 
       if (err.response?.status === 401) {
         setError(
-          typeof err.response?.data === "string"
-            ? err.response.data
-            : "Correo o contraseña incorrectos."
+          err.response?.data?.mensaje ||
+            "Correo o contraseña incorrectos."
         );
       } else if (err.response?.data?.mensaje) {
         setError(err.response.data.mensaje);
@@ -116,7 +86,7 @@ function Login() {
         setError(err.response.data);
       } else if (!err.response) {
         setError(
-          "No se pudo conectar con el servidor. Verifica que la API esté ejecutándose."
+          "No se pudo conectar con el servidor. Verifica que la API esté disponible."
         );
       } else {
         setError("Ocurrió un error al iniciar sesión.");
@@ -127,23 +97,24 @@ function Login() {
   };
 
   return (
-    <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div className="min-vh-100 d-flex align-items-center justify-content-center bg-dark">
       <div
-        className="card border-0 shadow-sm"
+        className="card border-0 shadow-lg"
         style={{ width: "100%", maxWidth: "420px" }}
       >
         <div className="card-body p-4 p-md-5">
           <div className="text-center mb-4">
             <div
               className="d-inline-flex align-items-center justify-content-center bg-dark text-white rounded-3 mb-3"
-              style={{ width: "55px", height: "55px", fontSize: "25px" }}
+              style={{ width: "58px", height: "58px", fontSize: "26px" }}
             >
-              <i className="bi bi-shop"></i>
+              <i className="bi bi-shield-lock"></i>
             </div>
 
-            <h2 className="fw-bold mb-1">POS SaaS</h2>
+            <h2 className="fw-bold mb-1">Administración</h2>
+
             <p className="text-secondary mb-0">
-              Inicia sesión para continuar
+              Acceso de plataforma POS SaaS
             </p>
           </div>
 
@@ -156,7 +127,7 @@ function Login() {
 
           <form onSubmit={iniciarSesion}>
             <div className="mb-3">
-              <label htmlFor="email" className="form-label">
+              <label htmlFor="platform-email" className="form-label">
                 Correo electrónico
               </label>
 
@@ -166,10 +137,10 @@ function Login() {
                 </span>
 
                 <input
-                  id="email"
+                  id="platform-email"
                   type="email"
                   className="form-control"
-                  placeholder="correo@ejemplo.com"
+                  placeholder="admin@plataforma.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -179,7 +150,7 @@ function Login() {
             </div>
 
             <div className="mb-4">
-              <label htmlFor="password" className="form-label">
+              <label htmlFor="platform-password" className="form-label">
                 Contraseña
               </label>
 
@@ -189,7 +160,7 @@ function Login() {
                 </span>
 
                 <input
-                  id="password"
+                  id="platform-password"
                   type="password"
                   className="form-control"
                   placeholder="••••••••"
@@ -216,8 +187,8 @@ function Login() {
                 </>
               ) : (
                 <>
-                  <i className="bi bi-box-arrow-in-right me-2"></i>
-                  Iniciar sesión
+                  <i className="bi bi-shield-check me-2"></i>
+                  Entrar a plataforma
                 </>
               )}
             </button>
@@ -225,7 +196,7 @@ function Login() {
 
           <div className="text-center mt-4">
             <small className="text-secondary">
-              Sistema de Punto de Venta
+              Acceso exclusivo para administración de plataforma
             </small>
           </div>
         </div>
@@ -234,4 +205,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default SuperAdminLogin;
