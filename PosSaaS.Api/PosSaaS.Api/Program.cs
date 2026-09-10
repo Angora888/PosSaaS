@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using PosSaaS.Api.Data;
+using PosSaaS.Api.Models;
 using PosSaaS.Api.Services;
 using System.Text;
 
@@ -163,6 +164,101 @@ builder.Services.AddSwaggerGen(options =>
 // =====================================================
 
 var app = builder.Build();
+
+
+// =====================================================
+// PLATFORM SUPERADMIN BOOTSTRAP
+// =====================================================
+//
+// Este bloque está pensado únicamente para crear el primer
+// SuperAdmin de plataforma de forma segura e idempotente.
+//
+// NO guarda la contraseña en el código.
+// Solo se ejecuta cuando:
+// PlatformBootstrap__Enabled=true
+//
+// Variables esperadas:
+// PlatformBootstrap__Nombre
+// PlatformBootstrap__Email
+// PlatformBootstrap__Password
+//
+// Si el usuario ya existe por email, no crea otro.
+// Después de crear el SuperAdmin, se deben borrar/desactivar
+// estas variables.
+
+var platformBootstrapEnabled =
+    builder.Configuration.GetValue<bool>("PlatformBootstrap:Enabled");
+
+if (platformBootstrapEnabled)
+{
+    var bootstrapNombre =
+        builder.Configuration["PlatformBootstrap:Nombre"]?.Trim();
+
+    var bootstrapEmail =
+        builder.Configuration["PlatformBootstrap:Email"]?.Trim().ToLower();
+
+    var bootstrapPassword =
+        builder.Configuration["PlatformBootstrap:Password"];
+
+    if (string.IsNullOrWhiteSpace(bootstrapNombre))
+    {
+        throw new InvalidOperationException(
+            "PlatformBootstrap:Nombre no está configurado."
+        );
+    }
+
+    if (string.IsNullOrWhiteSpace(bootstrapEmail))
+    {
+        throw new InvalidOperationException(
+            "PlatformBootstrap:Email no está configurado."
+        );
+    }
+
+    if (string.IsNullOrWhiteSpace(bootstrapPassword) ||
+        bootstrapPassword.Length < 12)
+    {
+        throw new InvalidOperationException(
+            "PlatformBootstrap:Password debe tener al menos 12 caracteres."
+        );
+    }
+
+    using var scope = app.Services.CreateScope();
+
+    var db =
+        scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var existe =
+        await db.PlatformUsers
+            .AnyAsync(x => x.Email.ToLower() == bootstrapEmail);
+
+    if (!existe)
+    {
+        var platformUser = new PlatformUser
+        {
+            Nombre = bootstrapNombre,
+            Email = bootstrapEmail,
+            PasswordHash =
+                BCrypt.Net.BCrypt.HashPassword(bootstrapPassword),
+            Rol = "SuperAdmin",
+            Activo = true,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        db.PlatformUsers.Add(platformUser);
+
+        await db.SaveChangesAsync();
+
+        Console.WriteLine(
+            $"SuperAdmin de plataforma creado: {bootstrapEmail}"
+        );
+    }
+    else
+    {
+        Console.WriteLine(
+            $"El SuperAdmin de plataforma ya existe: {bootstrapEmail}"
+        );
+    }
+}
 
 
 // =====================================================

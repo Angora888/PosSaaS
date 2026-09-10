@@ -13,6 +13,7 @@ namespace PosSaaS.Api.Data
         public DbSet<Tenant> Tenants => Set<Tenant>();
         public DbSet<Sucursal> Sucursales => Set<Sucursal>();
         public DbSet<Usuario> Usuarios => Set<Usuario>();
+        public DbSet<PlatformUser> PlatformUsers => Set<PlatformUser>();
 
         public DbSet<Categoria> Categorias => Set<Categoria>();
         public DbSet<Producto> Productos => Set<Producto>();
@@ -129,10 +130,35 @@ namespace PosSaaS.Api.Data
                     .HasForeignKey(x => x.SucursalId)
                     .OnDelete(DeleteBehavior.SetNull);
 
-                // El email debe ser único en toda la plataforma.
+                // El email debe ser ├║nico en toda la plataforma.
                 entity.HasIndex(x => x.Email)
                     .IsUnique();
             });
+
+            // PLATFORM USER
+            modelBuilder.Entity<PlatformUser>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Nombre)
+                    .IsRequired()
+                    .HasMaxLength(150);
+
+                entity.Property(x => x.Email)
+                    .IsRequired()
+                    .HasMaxLength(200);
+
+                entity.Property(x => x.PasswordHash)
+                    .IsRequired();
+
+                entity.Property(x => x.Rol)
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.HasIndex(x => x.Email)
+                    .IsUnique();
+            });
+
 
             // CATEGORIA
             modelBuilder.Entity<Categoria>(entity =>
@@ -193,14 +219,14 @@ namespace PosSaaS.Api.Data
                     .HasForeignKey(x => x.CategoriaId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // SKU único dentro de cada comercio.
+                // SKU ├║nico dentro de cada comercio.
                 entity.HasIndex(x => new
                 {
                     x.TenantId,
                     x.SKU
                 }).IsUnique();
 
-                // Código de barras único dentro de cada comercio.
+                // C├│digo de barras ├║nico dentro de cada comercio.
                 entity.HasIndex(x => new
                 {
                     x.TenantId,
@@ -289,7 +315,7 @@ namespace PosSaaS.Api.Data
                     .HasForeignKey(x => x.UsuarioId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // Para consultar rápidamente el historial
+                // Para consultar r├ípidamente el historial
                 // de un producto.
                 entity.HasIndex(x => new
                 {
