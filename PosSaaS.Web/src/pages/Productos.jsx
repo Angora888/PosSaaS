@@ -26,6 +26,14 @@ function Productos() {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [productoEditando, setProductoEditando] = useState(null);
 
+  // Importación masiva desde Excel
+  const [mostrarModalImportar, setMostrarModalImportar] = useState(false);
+  const [archivoExcel, setArchivoExcel] = useState(null);
+  const [vistaPreviaImportacion, setVistaPreviaImportacion] = useState(null);
+  const [analizandoExcel, setAnalizandoExcel] = useState(false);
+  const [importandoExcel, setImportandoExcel] = useState(false);
+  const [errorImportacion, setErrorImportacion] = useState("");
+
   const [formulario, setFormulario] = useState({
     categoriaId: "",
     nombre: "",
@@ -490,6 +498,158 @@ function Productos() {
     }
   };
 
+  const abrirImportarExcel = () => {
+    setArchivoExcel(null);
+    setVistaPreviaImportacion(null);
+    setErrorImportacion("");
+    setError("");
+    setMensaje("");
+    setMostrarModalImportar(true);
+  };
+
+  const cerrarImportarExcel = () => {
+    if (analizandoExcel || importandoExcel) {
+      return;
+    }
+
+    setMostrarModalImportar(false);
+    setArchivoExcel(null);
+    setVistaPreviaImportacion(null);
+    setErrorImportacion("");
+  };
+
+  const obtenerMensajeErrorImportacion = (err, mensajePorDefecto) => {
+    const data = err.response?.data;
+
+    if (typeof data === "string") {
+      return data;
+    }
+
+    if (data?.mensaje) {
+      if (Array.isArray(data.errores) && data.errores.length > 0) {
+        return `${data.mensaje} ${data.errores.slice(0, 5).join(" ")}`;
+      }
+
+      return data.mensaje;
+    }
+
+    if (data?.message) {
+      return data.message;
+    }
+
+    if (data?.title) {
+      return data.title;
+    }
+
+    return mensajePorDefecto;
+  };
+
+  const seleccionarArchivoExcel = (e) => {
+    const archivo = e.target.files?.[0] || null;
+
+    setVistaPreviaImportacion(null);
+    setErrorImportacion("");
+
+    if (!archivo) {
+      setArchivoExcel(null);
+      return;
+    }
+
+    if (!archivo.name.toLowerCase().endsWith(".xlsx")) {
+      setArchivoExcel(null);
+      setErrorImportacion("Selecciona un archivo Excel con extensión .xlsx.");
+      e.target.value = "";
+      return;
+    }
+
+    if (archivo.size > 10 * 1024 * 1024) {
+      setArchivoExcel(null);
+      setErrorImportacion("El archivo no puede superar 10 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    setArchivoExcel(archivo);
+  };
+
+  const analizarArchivoExcel = async () => {
+    if (!archivoExcel) {
+      setErrorImportacion("Selecciona primero el archivo Excel.");
+      return;
+    }
+
+    try {
+      setAnalizandoExcel(true);
+      setErrorImportacion("");
+      setVistaPreviaImportacion(null);
+
+      const formData = new FormData();
+      formData.append("archivo", archivoExcel);
+
+      const response = await api.post(
+        "/Productos/importar-excel/vista-previa",
+        formData
+      );
+
+      setVistaPreviaImportacion(response.data);
+    } catch (err) {
+      console.error(err);
+
+      setErrorImportacion(
+        obtenerMensajeErrorImportacion(
+          err,
+          "No fue posible analizar el archivo Excel."
+        )
+      );
+    } finally {
+      setAnalizandoExcel(false);
+    }
+  };
+
+  const confirmarImportacionExcel = async () => {
+    if (!archivoExcel || !vistaPreviaImportacion?.listoParaImportar) {
+      return;
+    }
+
+    try {
+      setImportandoExcel(true);
+      setErrorImportacion("");
+
+      const formData = new FormData();
+      formData.append("archivo", archivoExcel);
+
+      const response = await api.post(
+        "/Productos/importar-excel",
+        formData
+      );
+
+      const resultado = response.data;
+
+      setMostrarModalImportar(false);
+      setArchivoExcel(null);
+      setVistaPreviaImportacion(null);
+
+      setMensaje(
+        `Importación completada: ${resultado.productosCreados ?? 0} productos creados, ` +
+          `${resultado.productosActualizados ?? 0} actualizados y ` +
+          `${resultado.categoriasCreadas ?? 0} categorías nuevas.`
+      );
+
+      await cargarDatos();
+    } catch (err) {
+      console.error(err);
+
+      setErrorImportacion(
+        obtenerMensajeErrorImportacion(
+          err,
+          "No fue posible importar los productos."
+        )
+      );
+    } finally {
+      setImportandoExcel(false);
+    }
+  };
+
   const obtenerCategoria = (producto) => {
     if (producto.categoriaNombre) {
       return producto.categoriaNombre;
@@ -535,6 +695,15 @@ function Productos() {
 
         {esAdmin && (
           <div className="d-flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-success"
+              onClick={abrirImportarExcel}
+            >
+              <i className="bi bi-file-earmark-excel me-2"></i>
+              Importar Excel
+            </button>
+
             <button
               type="button"
               className="btn btn-outline-dark"
@@ -819,6 +988,250 @@ function Productos() {
           )}
         </div>
       </div>
+
+      {esAdmin && mostrarModalImportar && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            role="dialog"
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+              <div className="modal-content border-0 shadow">
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title fw-bold">
+                      <i className="bi bi-file-earmark-excel me-2 text-success"></i>
+                      Importar productos desde Excel
+                    </h5>
+                    <small className="text-secondary">
+                      Revisa el archivo antes de guardar cambios en el catálogo.
+                    </small>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={cerrarImportarExcel}
+                    disabled={analizandoExcel || importandoExcel}
+                  />
+                </div>
+
+                <div className="modal-body p-4">
+                  {errorImportacion && (
+                    <div className="alert alert-danger">
+                      <i className="bi bi-exclamation-triangle me-2"></i>
+                      {errorImportacion}
+                    </div>
+                  )}
+
+                  <div className="border rounded-3 p-4 bg-light">
+                    <label className="form-label fw-semibold">
+                      Archivo Excel (.xlsx)
+                    </label>
+
+                    <input
+                      type="file"
+                      className="form-control"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={seleccionarArchivoExcel}
+                      disabled={analizandoExcel || importandoExcel}
+                    />
+
+                    <div className="form-text mt-2">
+                      Columnas esperadas: SKU / Código, Producto, IVA, Costo,
+                      Precio y Categoría. Máximo 10 MB.
+                    </div>
+
+                    {archivoExcel && (
+                      <div className="mt-3 d-flex align-items-center gap-2">
+                        <i className="bi bi-file-earmark-check text-success"></i>
+                        <span className="fw-semibold text-break">
+                          {archivoExcel.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {!vistaPreviaImportacion && (
+                    <div className="text-center mt-4">
+                      <button
+                        type="button"
+                        className="btn btn-dark px-4"
+                        onClick={analizarArchivoExcel}
+                        disabled={!archivoExcel || analizandoExcel || importandoExcel}
+                      >
+                        {analizandoExcel ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" />
+                            Analizando...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-search me-2"></i>
+                            Analizar archivo
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {vistaPreviaImportacion && (
+                    <div className="mt-4">
+                      <div className="alert alert-success mb-4">
+                        <div className="fw-bold">
+                          <i className="bi bi-check-circle-fill me-2"></i>
+                          Archivo válido y listo para importar
+                        </div>
+                        <small>
+                          La vista previa no ha realizado cambios en la base de datos.
+                        </small>
+                      </div>
+
+                      <div className="row g-3">
+                        <div className="col-6 col-md-3">
+                          <div className="card h-100 border-0 bg-light">
+                            <div className="card-body text-center">
+                              <div className="fs-3 fw-bold">
+                                {vistaPreviaImportacion.totalProductos ?? 0}
+                              </div>
+                              <small className="text-secondary">
+                                Productos
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-6 col-md-3">
+                          <div className="card h-100 border-0 bg-light">
+                            <div className="card-body text-center">
+                              <div className="fs-3 fw-bold text-success">
+                                {vistaPreviaImportacion.productosNuevos ?? 0}
+                              </div>
+                              <small className="text-secondary">
+                                Nuevos
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-6 col-md-3">
+                          <div className="card h-100 border-0 bg-light">
+                            <div className="card-body text-center">
+                              <div className="fs-3 fw-bold">
+                                {vistaPreviaImportacion.productosActualizar ?? 0}
+                              </div>
+                              <small className="text-secondary">
+                                Se actualizarán
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-6 col-md-3">
+                          <div className="card h-100 border-0 bg-light">
+                            <div className="card-body text-center">
+                              <div className="fs-3 fw-bold">
+                                {vistaPreviaImportacion.categoriasNuevas ?? 0}
+                              </div>
+                              <small className="text-secondary">
+                                Categorías nuevas
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {(vistaPreviaImportacion.nombresCategoriasNuevas?.length ?? 0) > 0 && (
+                        <div className="mt-4">
+                          <div className="fw-semibold mb-2">
+                            Categorías que se crearán
+                          </div>
+
+                          <div className="d-flex flex-wrap gap-2">
+                            {vistaPreviaImportacion.nombresCategoriasNuevas.map(
+                              (categoria) => (
+                                <span
+                                  className="badge text-bg-light border text-dark"
+                                  key={categoria}
+                                >
+                                  {categoria}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="alert alert-warning mt-4 mb-0">
+                        <i className="bi bi-info-circle me-2"></i>
+                        Los productos que ya existan con el mismo SKU se
+                        actualizarán. Los códigos de barras y descripciones
+                        existentes no se reemplazarán.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={cerrarImportarExcel}
+                    disabled={analizandoExcel || importandoExcel}
+                  >
+                    Cancelar
+                  </button>
+
+                  {vistaPreviaImportacion && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-outline-dark"
+                        onClick={() => {
+                          setVistaPreviaImportacion(null);
+                          setErrorImportacion("");
+                        }}
+                        disabled={importandoExcel}
+                      >
+                        Cambiar archivo
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-success px-4"
+                        onClick={confirmarImportacionExcel}
+                        disabled={
+                          importandoExcel ||
+                          !vistaPreviaImportacion.listoParaImportar
+                        }
+                      >
+                        {importandoExcel ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" />
+                            Importando...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-cloud-arrow-up me-2"></i>
+                            Importar{" "}
+                            {vistaPreviaImportacion.totalProductos ?? 0} productos
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="modal-backdrop fade show"
+            onClick={cerrarImportarExcel}
+          ></div>
+        </>
+      )}
 
       {esAdmin && mostrarModalCategorias && (
         <>
