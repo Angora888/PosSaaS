@@ -12,6 +12,18 @@ function SuperAdmin() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [detalle, setDetalle] = useState(null);
+  const [mostrarRegistro, setMostrarRegistro] = useState(false);
+  const [errorRegistro, setErrorRegistro] = useState("");
+  const [registrando, setRegistrando] = useState(false);
+  const [nuevoComercio, setNuevoComercio] = useState({
+    nombreComercio: "",
+    nombreComercial: "",
+    identificacion: "",
+    telefono: "",
+    nombreAdmin: "",
+    emailAdmin: "",
+    password: "",
+  });
 
   useEffect(() => {
     cargarDatos();
@@ -88,6 +100,40 @@ function SuperAdmin() {
     }
   };
 
+  const registrarComercio = async (e) => {
+    e.preventDefault();
+    if (registrando) return;
+    setErrorRegistro("");
+    if (nuevoComercio.password.length < 6) {
+      setErrorRegistro("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    try {
+      setRegistrando(true);
+      await api.post("/Tenants/registrar", {
+        ...nuevoComercio,
+        nombreComercio: nuevoComercio.nombreComercio.trim(),
+        nombreComercial: nuevoComercio.nombreComercial.trim(),
+        identificacion: nuevoComercio.identificacion.trim(),
+        telefono: nuevoComercio.telefono.trim(),
+        nombreAdmin: nuevoComercio.nombreAdmin.trim(),
+        emailAdmin: nuevoComercio.emailAdmin.trim().toLowerCase(),
+      });
+      setMostrarRegistro(false);
+      setNuevoComercio({
+        nombreComercio: "", nombreComercial: "", identificacion: "",
+        telefono: "", nombreAdmin: "", emailAdmin: "", password: "",
+      });
+      await cargarDatos();
+      setMensaje("Comercio y administrador creados correctamente.");
+    } catch (err) {
+      console.error(err);
+      setErrorRegistro(obtenerError(err, "No fue posible registrar el comercio."));
+    } finally {
+      setRegistrando(false);
+    }
+  };
+
   const cambiarEstado = async (tenant) => {
     const nuevoEstado = !tenant.activo;
     const accion = nuevoEstado ? "activar" : "suspender";
@@ -117,9 +163,14 @@ function SuperAdmin() {
           <h2 className="fw-bold mb-1">Administración de la plataforma</h2>
           <p className="text-secondary mb-0">Vista global de los comercios registrados en POS SaaS.</p>
         </div>
-        <button className="btn btn-outline-dark" onClick={cargarDatos} disabled={cargando || procesando}>
-          <i className="bi bi-arrow-clockwise me-2"></i>Actualizar
-        </button>
+        <div className="d-flex gap-2">
+          <button className="btn btn-dark" onClick={() => { setErrorRegistro(""); setMensaje(""); setMostrarRegistro(true); }} disabled={registrando}>
+            <i className="bi bi-plus-circle me-2"></i>Nuevo comercio
+          </button>
+          <button className="btn btn-outline-dark" onClick={cargarDatos} disabled={cargando || procesando}>
+            <i className="bi bi-arrow-clockwise me-2"></i>Actualizar
+          </button>
+        </div>
       </div>
 
       {error && <div className="alert alert-danger"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>}
@@ -189,6 +240,57 @@ function SuperAdmin() {
             </div>
           </div>
         </>
+      )}
+
+      {mostrarRegistro && (
+        <div className="modal d-block" role="dialog" aria-modal="true" aria-labelledby="registro-comercio-titulo" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,.5)" }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-content border-0">
+              <form onSubmit={registrarComercio}>
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title fw-bold" id="registro-comercio-titulo">Registrar nuevo comercio</h5>
+                    <small className="text-secondary">Se creará el comercio y su usuario administrador.</small>
+                  </div>
+                  <button type="button" className="btn-close" disabled={registrando} onClick={() => setMostrarRegistro(false)} aria-label="Cerrar"></button>
+                </div>
+                <div className="modal-body p-4">
+                  {errorRegistro && <div className="alert alert-danger" role="alert">{errorRegistro}</div>}
+                  <div className="row g-3">
+                    {[
+                      ["nombreComercio", "Nombre del comercio", "text", true],
+                      ["nombreComercial", "Nombre comercial (opcional)", "text", false],
+                      ["identificacion", "Identificación (opcional)", "text", false],
+                      ["telefono", "Teléfono (opcional)", "tel", false],
+                      ["nombreAdmin", "Nombre del administrador", "text", true],
+                      ["emailAdmin", "Correo del administrador", "email", true],
+                    ].map(([campo, etiqueta, tipo, obligatorio]) => (
+                      <div className="col-md-6" key={campo}>
+                        <label className="form-label" htmlFor={campo}>{etiqueta}</label>
+                        <input id={campo} className="form-control" type={tipo} required={obligatorio}
+                          value={nuevoComercio[campo]} disabled={registrando}
+                          onChange={(e) => setNuevoComercio((actual) => ({ ...actual, [campo]: e.target.value }))} />
+                      </div>
+                    ))}
+                    <div className="col-md-6">
+                      <label className="form-label" htmlFor="password-nuevo-comercio">Contraseña inicial del administrador</label>
+                      <input id="password-nuevo-comercio" className="form-control" type="password" minLength={6}
+                        autoComplete="new-password" required disabled={registrando} value={nuevoComercio.password}
+                        onChange={(e) => setNuevoComercio((actual) => ({ ...actual, password: e.target.value }))} />
+                      <small className="text-secondary">Mínimo 6 caracteres. Compartila con el administrador por un canal seguro.</small>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-light" disabled={registrando} onClick={() => setMostrarRegistro(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-dark" disabled={registrando}>
+                    {registrando ? "Creando..." : "Crear comercio"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
 
       {detalle && (
