@@ -19,7 +19,7 @@ namespace PosSaaS.Api.Controllers
         }
 
         [HttpPost("registrar")]
-        [AllowAnonymous]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<IActionResult> Registrar(RegistrarTenantDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.NombreComercio))
