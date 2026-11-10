@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layouts/AppLayout";
 import api from "../services/api";
+import "../styles/clientes-modal.css";
 
 function Clientes() {
   const rol = localStorage.getItem("rol") || "Usuario";
@@ -652,7 +653,7 @@ function Clientes() {
 
       {clientePerfil && (
         <>
-          <div className="modal fade show d-block" tabIndex="-1">
+          <div className="modal fade show d-block clientes-modal" tabIndex="-1" role="dialog" aria-modal="true" aria-label="Formulario de cliente">
             <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
               <div className="modal-content border-0 shadow">
                 <div className="modal-header">
@@ -822,39 +823,23 @@ function Clientes() {
                     )}
 
                     <div className="row g-3">
-                      <div className="col-md-7">
-                        <label className="form-label">Nombre *</label>
+                      <div className="col-12">
+                        <label className="form-label fw-semibold" htmlFor="cliente-identificacion">Identificación</label>
                         <input
+                          id="cliente-identificacion"
                           type="text"
-                          className="form-control"
-                          name="nombre"
-                          value={formulario.nombre}
-                          onChange={cambiarCampo}
-                          autoFocus
-                        />
-                      </div>
-                      <div className="col-md-5">
-                         <label className="form-label">Tipo de identificación (Hacienda)</label>
-                         <select className="form-select" name="tipoIdentificacion" value={formulario.tipoIdentificacion} onChange={cambiarCampo}>
-                           <option value="">Sin especificar</option>
-                           <option value="01">Cédula física</option>
-                           <option value="02">Cédula jurídica</option>
-                           <option value="03">DIMEX</option>
-                           <option value="04">NITE</option>
-                         </select>
-                       </div>
-                       <div className="col-md-5">
-                        <label className="form-label">Identificación</label>
-                        <input
-                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
                           className="form-control"
                           name="identificacion"
                           value={formulario.identificacion}
                           onChange={cambiarCampo}
+                          placeholder="Cédula física o jurídica"
+                          autoFocus
                         />
                       </div>
                       {!clienteEditando && <div className="col-12">
-                        <button type="button" className="btn btn-outline-primary"
+                        <button type="button" className="btn btn-outline-primary w-100 w-sm-auto"
                           disabled={consultandoHacienda || guardando || !formulario.identificacion.trim()}
                           onClick={consultarHacienda}>
                           {consultandoHacienda
@@ -868,6 +853,27 @@ function Clientes() {
                         {mensajeHacienda && <div className="alert alert-success py-2 mt-2 mb-0" role="status">{mensajeHacienda}</div>}
                         {errorHacienda && <div className="alert alert-warning py-2 mt-2 mb-0" role="alert">{errorHacienda}</div>}
                       </div>}
+                      <div className="col-md-7">
+                        <label className="form-label">Nombre *</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="nombre"
+                          value={formulario.nombre}
+                          onChange={cambiarCampo}
+                        />
+                      </div>
+                      <div className="col-md-5">
+                        <label className="form-label">Tipo de identificación (Hacienda)</label>
+                        <select className="form-select" name="tipoIdentificacion"
+                          value={formulario.tipoIdentificacion} onChange={cambiarCampo}>
+                          <option value="">Sin especificar</option>
+                          <option value="01">Cédula física</option>
+                          <option value="02">Cédula jurídica</option>
+                          <option value="03">DIMEX</option>
+                          <option value="04">NITE</option>
+                        </select>
+                      </div>
                       <div className="col-md-6">
                         <label className="form-label">Teléfono</label>
                         <input
