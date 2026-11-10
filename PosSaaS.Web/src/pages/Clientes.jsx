@@ -121,7 +121,7 @@ function Clientes() {
   };
 
   const consultarHacienda = async () => {
-    const digitos = formulario.identificacion.trim().replace(/[\\s-]/g, "");
+    const digitos = formulario.identificacion.trim().replace(/[\s-]/g, "");
     if (!/^[0-9]{9,12}$/.test(digitos)) {
       setErrorHacienda("Ingresá una cédula de 9 a 12 dígitos antes de consultar.");
       setMensajeHacienda("");
@@ -136,7 +136,7 @@ function Clientes() {
       });
       setFormulario(actual => {
         // Never overwrite changes made while the remote request was in flight.
-        if (actual.identificacion.trim().replace(/[\\s-]/g, "") !== digitos) return actual;
+        if (actual.identificacion.trim().replace(/[\s-]/g, "") !== digitos) return actual;
         return {
           ...actual,
           identificacion: data.identificacion || digitos,
