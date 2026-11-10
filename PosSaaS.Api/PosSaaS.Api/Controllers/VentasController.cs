@@ -334,21 +334,36 @@ namespace PosSaaS.Api.Controllers
                         dto.Pagos.Sum(x => x.Monto),
                         2);
 
-                if (totalPagado != totalVenta)
+                // Only single-method cash payments may use the ₡10 rounding
+                // used for physical payments. All tax and line totals stay exact.
+                var esPagoUnicoEfectivo = dto.Pagos.Count == 1 &&
+                    metodosPago.Count == 1 &&
+                    metodosPago[0].Tipo.Equals("EFECTIVO", StringComparison.OrdinalIgnoreCase);
+                if (dto.AplicarRedondeoEfectivo && !esPagoUnicoEfectivo)
+                {
+                    await transaction.RollbackAsync();
+                    return BadRequest("El redondeo a ₡10 solo aplica a ventas pagadas totalmente en efectivo.");
+                }
+                var totalEfectivo = dto.AplicarRedondeoEfectivo
+                    ? Math.Round(totalVenta / 10m, 0, MidpointRounding.AwayFromZero) * 10m
+                    : totalVenta;
+                var ajusteEfectivo = totalEfectivo - totalVenta;
+                if (totalPagado != totalEfectivo)
                 {
                     await transaction.RollbackAsync();
 
                     return BadRequest(new
                     {
                         mensaje =
-                            "El total de los pagos debe ser igual al total de la venta.",
+                            "El total de los pagos no coincide con el importe esperado para el método de cobro.",
 
                         totalVenta,
-
+                        totalEfectivo,
+                        ajusteEfectivo,
                         totalPagado,
 
                         diferencia =
-                            totalPagado - totalVenta
+                            totalPagado - totalEfectivo
                     });
                 }
 
@@ -394,6 +409,8 @@ namespace PosSaaS.Api.Controllers
 
                     Total =
                         totalVenta,
+
+                    AjusteRedondeoEfectivo = ajusteEfectivo,
 
                     Estado =
                         "COMPLETADA"
@@ -601,6 +618,9 @@ namespace PosSaaS.Api.Controllers
 
                     total =
                         totalVenta,
+
+                    ajusteRedondeoEfectivo = ajusteEfectivo,
+                    totalCobrado = totalEfectivo,
 
                     pagos =
                         dto.Pagos.Select(x =>
