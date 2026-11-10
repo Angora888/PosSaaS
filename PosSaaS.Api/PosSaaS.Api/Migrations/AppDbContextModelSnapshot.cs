@@ -22,6 +22,46 @@ namespace PosSaaS.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("PosSaaS.Api.Models.FiscalSequence", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<int>("TenantId").HasColumnType("integer");
+                    b.Property<int>("SucursalId").HasColumnType("integer");
+                    b.Property<string>("Terminal").IsRequired().HasMaxLength(5).HasColumnType("character varying(5)");
+                    b.Property<string>("TipoDocumento").IsRequired().HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<long>("UltimoNumero").HasColumnType("bigint");
+                    b.Property<DateTime>("FechaActualizacion").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("SucursalId");
+                    b.HasIndex("TenantId", "SucursalId", "Terminal", "TipoDocumento").IsUnique();
+                    b.ToTable("FiscalSequences");
+                });
+
+            modelBuilder.Entity("PosSaaS.Api.Models.ElectronicDocument", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<int>("TenantId").HasColumnType("integer");
+                    b.Property<int>("SucursalId").HasColumnType("integer");
+                    b.Property<long?>("VentaId").HasColumnType("bigint");
+                    b.Property<string>("TipoDocumento").IsRequired().HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<string>("Consecutivo").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)");
+                    b.Property<string>("Clave").IsRequired().HasMaxLength(50).HasColumnType("character varying(50)");
+                    b.Property<string>("Estado").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)");
+                    b.Property<DateTime>("FechaCreacion").HasColumnType("timestamp with time zone");
+                    b.Property<string>("XmlStoragePath").HasColumnType("text");
+                    b.Property<string>("HaciendaResponsePath").HasColumnType("text");
+                    b.Property<string>("UltimoError").HasColumnType("text");
+                    b.HasKey("Id");
+                    b.HasIndex("SucursalId");
+                    b.HasIndex("VentaId");
+                    b.HasIndex("Clave").IsUnique();
+                    b.HasIndex("TenantId", "Consecutivo").IsUnique();
+                    b.HasIndex("TenantId", "VentaId", "TipoDocumento");
+                    b.ToTable("ElectronicDocuments");
+                });
+
             modelBuilder.Entity("PosSaaS.Api.Models.FiscalConfiguration", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer");
@@ -816,6 +856,19 @@ namespace PosSaaS.Api.Migrations
                     b.HasIndex("VentaId");
 
                     b.ToTable("VentaDetalles");
+                });
+
+            modelBuilder.Entity("PosSaaS.Api.Models.FiscalSequence", b =>
+                {
+                    b.HasOne("PosSaaS.Api.Models.Tenant", null).WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("PosSaaS.Api.Models.Sucursal", null).WithMany().HasForeignKey("SucursalId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                });
+
+            modelBuilder.Entity("PosSaaS.Api.Models.ElectronicDocument", b =>
+                {
+                    b.HasOne("PosSaaS.Api.Models.Tenant", null).WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("PosSaaS.Api.Models.Sucursal", null).WithMany().HasForeignKey("SucursalId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("PosSaaS.Api.Models.Venta", null).WithMany().HasForeignKey("VentaId").OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("PosSaaS.Api.Models.FiscalConfiguration", b =>
