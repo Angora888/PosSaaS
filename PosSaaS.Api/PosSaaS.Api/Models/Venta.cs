@@ -24,6 +24,10 @@
 
         public decimal Total { get; set; }
 
+        // Difference between cash actually collected and the exact tax-inclusive total.
+        // Zero for non-cash or legacy sales; never alters the fiscal line totals.
+        public decimal AjusteRedondeoEfectivo { get; set; }
+
         public string Estado { get; set; } = "COMPLETADA";
 
         public Tenant Tenant { get; set; } = null!;
