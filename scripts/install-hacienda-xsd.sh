@@ -20,7 +20,7 @@ tree=ET.parse(path)
 root=tree.getroot()
 if root.tag != "{http://www.w3.org/2001/XMLSchema}schema":
     raise SystemExit("Archivo descargado NO es un esquema XML: "+name)
-if "2024/v4.4" not in root.attrib.get("targetNamespace", ""):
+if "v4.4" not in root.attrib.get("targetNamespace", ""):
     raise SystemExit("Namespace inesperado; verificar versión antes de instalar: "+name)
 print("Verificado XML Schema:",name,root.attrib.get("targetNamespace"))
 PY
