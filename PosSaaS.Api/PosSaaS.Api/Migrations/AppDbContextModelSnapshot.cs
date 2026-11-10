@@ -616,6 +616,14 @@ namespace PosSaaS.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("CodigoSucursalFiscal")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("CodigoTerminalFiscal")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");
 
@@ -632,6 +640,9 @@ namespace PosSaaS.Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CodigoSucursalFiscal")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
