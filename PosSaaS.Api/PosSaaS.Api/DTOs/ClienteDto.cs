@@ -6,6 +6,8 @@
 
         public string? Identificacion { get; set; }
 
+        public string? TipoIdentificacion { get; set; }
+
         public string? Telefono { get; set; }
 
         public string? Email { get; set; }
