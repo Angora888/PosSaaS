@@ -435,7 +435,7 @@ function PuntoVenta() {
     const metodo = metodosPago.find((x) => String(x.id) === String(metodoId));
     setMontoRecibido(
       metodo?.tipo?.toUpperCase() === "EFECTIVO"
-        ? String(Math.ceil(resumen.total / 10) * 10)
+        ? String(Math.round(resumen.total / 10) * 10)
         : ""
     );
     setMostrarModalPago(true);
@@ -459,7 +459,7 @@ function PuntoVenta() {
     const metodo = metodosPago.find((x) => String(x.id) === String(id));
     setMontoRecibido(
       metodo?.tipo?.toUpperCase() === "EFECTIVO"
-        ? String(Math.ceil(resumen.total / 10) * 10)
+        ? String(Math.round(resumen.total / 10) * 10)
         : ""
     );
   };
