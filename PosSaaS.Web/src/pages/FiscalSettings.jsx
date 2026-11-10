@@ -18,6 +18,8 @@ function FiscalSettings() {
   const [diagnostico, setDiagnostico] = useState(null);
   const [consultando, setConsultando] = useState(false);
   const [errorDiagnostico, setErrorDiagnostico] = useState("");
+  const [xmlDraft, setXmlDraft] = useState("");
+  const [cargandoXml, setCargandoXml] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -48,6 +50,7 @@ function FiscalSettings() {
     setConsultando(true);
     setErrorDiagnostico("");
     setDiagnostico(null);
+    setXmlDraft("");
     try {
       const response = await api.get(`/fiscal/diagnostics/sale/${ventaId.trim()}`);
       setDiagnostico(response.data);
@@ -55,6 +58,24 @@ function FiscalSettings() {
       setErrorDiagnostico(err.response?.data?.mensaje || "No fue posible revisar esta venta.");
     } finally {
       setConsultando(false);
+    }
+  };
+
+  const generarBorradorXml = async () => {
+    if (!diagnostico?.ventaId) return;
+    setCargandoXml(true);
+    setErrorDiagnostico("");
+    setXmlDraft("");
+    try {
+      const response = await api.get(`/fiscal/diagnostics/sale/${diagnostico.ventaId}/xml-draft`, {
+        responseType: "text",
+      });
+      setXmlDraft(response.data);
+    } catch (err) {
+      const data = err?.response?.data;
+      setErrorDiagnostico(data?.mensaje || "No se pudo crear el borrador XML.");
+    } finally {
+      setCargandoXml(false);
     }
   };
 
@@ -101,6 +122,14 @@ function FiscalSettings() {
             </button>
           </form>
           {errorDiagnostico && <div className="alert alert-danger mt-3">{errorDiagnostico}</div>}
+          {diagnostico && <button type="button" className="btn btn-outline-secondary mt-3"
+            onClick={generarBorradorXml} disabled={cargandoXml}>
+            {cargandoXml ? "Generando borrador..." : "Ver borrador XML interno"}
+          </button>}
+          {xmlDraft && <div className="mt-3">
+            <p className="text-danger fw-semibold mb-2">Borrador interno sin validez fiscal. No corresponde al XSD 4.4 ni debe enviarse a Hacienda.</p>
+            <pre className="bg-light border rounded p-3 overflow-auto" style={{ maxHeight: 300, fontSize: "0.75rem" }}>{xmlDraft}</pre>
+          </div>}
           {diagnostico && <div className="alert alert-info mt-3 mb-0">
             <strong>Venta #{diagnostico.ventaId}: emisión deshabilitada.</strong>
             <div>{diagnostico.cantidadLineas} líneas · Total: {Number(diagnostico.total).toLocaleString("es-CR", {style:"currency",currency:"CRC"})}</div>
