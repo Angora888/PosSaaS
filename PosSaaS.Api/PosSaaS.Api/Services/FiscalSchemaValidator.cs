@@ -21,7 +21,30 @@ public sealed class FiscalSchemaValidator
     public bool IsConfigured(string type)
     {
         var filename = SchemaFilename(type);
-        return filename != null && File.Exists(SchemaPath(filename));
+        if (filename is null) return false;
+        var path = SchemaPath(filename);
+        if (!File.Exists(path)) return false;
+
+        // "Disponible" requires a readable XSD 4.4 root, not merely a file
+        // with an .xsd extension (for example an HTML error response).
+        try
+        {
+            using var reader = XmlReader.Create(path, new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+                MaxCharactersInDocument = 4_000_000
+            });
+            reader.MoveToContent();
+            var targetNamespace = reader.GetAttribute("targetNamespace") ?? "";
+            return reader.LocalName == "schema" &&
+                   reader.NamespaceURI == XmlSchema.Namespace &&
+                   targetNamespace.Contains("v4.4", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is XmlException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     public FiscalValidationResult Validate(string type, string xml)
