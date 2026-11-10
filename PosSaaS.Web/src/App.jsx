@@ -15,6 +15,7 @@ import Configuracion from "./pages/Configuracion";
 import Usuarios from "./pages/Usuarios";
 import Reportes from "./pages/Reportes";
 import SuperAdmin from "./pages/SuperAdmin";
+import FiscalSettings from "./pages/FiscalSettings";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -123,6 +124,7 @@ function App() {
         }
       />
 
+      <Route path="/fiscal" element={<ProtectedRoute roles={["Admin"]}><FiscalSettings /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
