@@ -14,6 +14,10 @@ function FiscalSettings() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [ventaId, setVentaId] = useState("");
+  const [diagnostico, setDiagnostico] = useState(null);
+  const [consultando, setConsultando] = useState(false);
+  const [errorDiagnostico, setErrorDiagnostico] = useState("");
 
   useEffect(() => {
     let activo = true;
@@ -34,6 +38,25 @@ function FiscalSettings() {
       {ayuda && <small className="text-secondary">{ayuda}</small>}
     </div>
   );
+
+  const diagnosticarVenta = async (e) => {
+    e.preventDefault();
+    if (!/^[1-9][0-9]*$/.test(ventaId.trim())) {
+      setErrorDiagnostico("Ingresá un ID de venta válido.");
+      return;
+    }
+    setConsultando(true);
+    setErrorDiagnostico("");
+    setDiagnostico(null);
+    try {
+      const response = await api.get(`/fiscal/diagnostics/sale/${ventaId.trim()}`);
+      setDiagnostico(response.data);
+    } catch (err) {
+      setErrorDiagnostico(err.response?.data?.mensaje || "No fue posible revisar esta venta.");
+    } finally {
+      setConsultando(false);
+    }
+  };
 
   const guardar = async (e) => {
     e.preventDefault();
@@ -66,6 +89,27 @@ function FiscalSettings() {
       </div>
       {error && <div className="alert alert-danger" role="alert">{error}</div>}
       {mensaje && <div className="alert alert-success" role="status">{mensaje}</div>}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+          <h5 className="fw-bold">Diagnóstico fiscal de una venta</h5>
+          <p className="text-secondary small">Solo verifica datos faltantes. No genera consecutivos, XML, ni envía facturas.</p>
+          <form className="d-flex flex-wrap gap-2" onSubmit={diagnosticarVenta}>
+            <input type="number" min="1" className="form-control" style={{ maxWidth: 220 }}
+              placeholder="ID de venta" value={ventaId} onChange={e => setVentaId(e.target.value)} />
+            <button className="btn btn-outline-dark" type="submit" disabled={consultando}>
+              {consultando ? "Revisando..." : "Revisar venta"}
+            </button>
+          </form>
+          {errorDiagnostico && <div className="alert alert-danger mt-3">{errorDiagnostico}</div>}
+          {diagnostico && <div className="alert alert-info mt-3 mb-0">
+            <strong>Venta #{diagnostico.ventaId}: emisión deshabilitada.</strong>
+            <div>{diagnostico.cantidadLineas} líneas · Total: {Number(diagnostico.total).toLocaleString("es-CR", {style:"currency",currency:"CRC"})}</div>
+            {diagnostico.observaciones?.length > 0
+              ? <ul className="mb-0 mt-2">{diagnostico.observaciones.map((w, i) => <li key={i}>{w}</li>)}</ul>
+              : <p className="mb-0 mt-2">No se detectaron faltantes básicos; todavía falta validar reglas fiscales y XML 4.4.</p>}
+          </div>}
+        </div>
+      </div>
       {cargando ? <p>Cargando configuración...</p> : (
         <form className="card border-0 shadow-sm" onSubmit={guardar}>
           <div className="card-body p-4">
