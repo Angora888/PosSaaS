@@ -552,6 +552,8 @@ namespace PosSaaS.Api.Data
 
                 entity.Property(x => x.Total)
                     .HasPrecision(18, 2);
+                entity.Property(x => x.AjusteRedondeoEfectivo)
+                    .HasPrecision(18, 2);
 
                 entity.HasOne(x => x.Tenant)
                     .WithMany()
