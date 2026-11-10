@@ -61,6 +61,8 @@ namespace PosSaaS.Api.Controllers
                         x.Nombre,
                         x.Telefono,
                         x.Direccion,
+                        x.CodigoSucursalFiscal,
+                        x.CodigoTerminalFiscal,
                         x.Activa,
                         x.FechaCreacion
                     })
@@ -98,6 +100,8 @@ namespace PosSaaS.Api.Controllers
                         x.Nombre,
                         x.Telefono,
                         x.Direccion,
+                        x.CodigoSucursalFiscal,
+                        x.CodigoTerminalFiscal,
                         x.Activa,
                         x.FechaCreacion
                     })
@@ -130,6 +134,21 @@ namespace PosSaaS.Api.Controllers
 
             var nombre =
                 dto.Nombre.Trim();
+
+            var codigoSucursal = NormalizarCodigo(dto.CodigoSucursalFiscal);
+            var codigoTerminal = NormalizarCodigo(dto.CodigoTerminalFiscal);
+            var validation = ValidarCodigoFiscal(codigoSucursal, codigoTerminal);
+            if (validation != null) return BadRequest(validation);
+
+            if (codigoSucursal != null)
+            {
+                var usado = await _context.Sucursales.AnyAsync(x =>
+                    x.Id != id && x.TenantId == _tenantContext.TenantId &&
+                    x.CodigoSucursalFiscal == codigoSucursal);
+                if (usado) return BadRequest("El código fiscal de sucursal ya está asignado a otra sucursal del comercio.");
+            }
+
+
 
             var existe =
                 await _context.Sucursales
@@ -171,6 +190,8 @@ namespace PosSaaS.Api.Controllers
 
                     Direccion =
                         direccion,
+                    CodigoSucursalFiscal = codigoSucursal,
+                    CodigoTerminalFiscal = codigoTerminal,
 
                     Activa =
                         true,
@@ -241,8 +262,17 @@ namespace PosSaaS.Api.Controllers
                     "Ya existe otra sucursal con ese nombre.");
             }
 
+            var yaFacturo = await _context.ElectronicDocuments.AnyAsync(x =>
+                x.TenantId == _tenantContext.TenantId && x.SucursalId == id);
+            if (yaFacturo &&
+                (codigoSucursal != sucursal.CodigoSucursalFiscal ||
+                 codigoTerminal != sucursal.CodigoTerminalFiscal))
+                return BadRequest("Esta sucursal ya tiene documentos fiscales; sus códigos no pueden cambiarse.");
+
             sucursal.Nombre =
                 nombre;
+            sucursal.CodigoSucursalFiscal = codigoSucursal;
+            sucursal.CodigoTerminalFiscal = codigoTerminal;
 
             sucursal.Telefono =
                 string.IsNullOrWhiteSpace(
@@ -306,6 +336,23 @@ namespace PosSaaS.Api.Controllers
         // ============================================================
         // SEGURIDAD DE SUCURSAL
         // ============================================================
+
+        private static string? NormalizarCodigo(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        private static string? ValidarCodigoFiscal(string? sucursal, string? terminal)
+        {
+            if (sucursal == null && terminal == null) return null;
+            if (sucursal == null || terminal == null)
+                return "Debés completar ambos códigos fiscales: sucursal y terminal.";
+            if (sucursal.Length != 3 || !sucursal.All(c => c is >= '0' and <= '9') ||
+                sucursal == "000")
+                return "El código fiscal de sucursal debe tener tres dígitos entre 001 y 999.";
+            if (terminal.Length != 5 || !terminal.All(c => c is >= '0' and <= '9') ||
+                terminal == "00000")
+                return "El código fiscal de terminal debe tener cinco dígitos entre 00001 y 99999.";
+            return null;
+        }
 
         private bool PuedeAccederSucursal(
             int sucursalId)
