@@ -16,6 +16,9 @@ function Clientes() {
   const [mensaje, setMensaje] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
+  const [consultandoHacienda, setConsultandoHacienda] = useState(false);
+  const [mensajeHacienda, setMensajeHacienda] = useState("");
+  const [errorHacienda, setErrorHacienda] = useState("");
 
   const [clientePerfil, setClientePerfil] = useState(null);
   const [historialCliente, setHistorialCliente] = useState([]);
@@ -117,9 +120,44 @@ function Clientes() {
     });
   };
 
+  const consultarHacienda = async () => {
+    const digitos = formulario.identificacion.trim().replace(/[\\s-]/g, "");
+    if (!/^[0-9]{9,12}$/.test(digitos)) {
+      setErrorHacienda("Ingresá una cédula de 9 a 12 dígitos antes de consultar.");
+      setMensajeHacienda("");
+      return;
+    }
+    setConsultandoHacienda(true);
+    setErrorHacienda("");
+    setMensajeHacienda("");
+    try {
+      const { data } = await api.get("/hacienda/contribuyente", {
+        params: { identificacion: digitos },
+      });
+      setFormulario(actual => {
+        // Never overwrite changes made while the remote request was in flight.
+        if (actual.identificacion.trim().replace(/[\\s-]/g, "") !== digitos) return actual;
+        return {
+          ...actual,
+          identificacion: data.identificacion || digitos,
+          nombre: data.nombre || actual.nombre,
+          tipoIdentificacion: data.tipoIdentificacion || actual.tipoIdentificacion,
+        };
+      });
+      setMensajeHacienda("Datos encontrados en Hacienda. Revisalos antes de guardar.");
+    } catch (err) {
+      const detail = err.response?.data;
+      setErrorHacienda(detail?.mensaje || "No se pudo consultar Hacienda. Podés completar el cliente manualmente.");
+    } finally {
+      setConsultandoHacienda(false);
+    }
+  };
+
   const abrirNuevoCliente = () => {
     setClienteEditando(null);
     limpiarFormulario();
+    setMensajeHacienda("");
+    setErrorHacienda("");
     setError("");
     setMensaje("");
     setMostrarModal(true);
@@ -127,6 +165,8 @@ function Clientes() {
 
   const abrirEditarCliente = (cliente) => {
     setClienteEditando(cliente);
+    setMensajeHacienda("");
+    setErrorHacienda("");
     setFormulario({
       nombre: cliente.nombre || "",
       identificacion: cliente.identificacion || "",
@@ -144,12 +184,18 @@ function Clientes() {
     if (guardando) return;
     setMostrarModal(false);
     setClienteEditando(null);
+    setMensajeHacienda("");
+    setErrorHacienda("");
     limpiarFormulario();
     setError("");
   };
 
   const cambiarCampo = (e) => {
     const { name, value } = e.target;
+    if (name === "identificacion") {
+      setMensajeHacienda("");
+      setErrorHacienda("");
+    }
     setFormulario((actual) => ({ ...actual, [name]: value }));
   };
 
@@ -789,6 +835,21 @@ function Clientes() {
                           onChange={cambiarCampo}
                         />
                       </div>
+                      {!clienteEditando && <div className="col-12">
+                        <button type="button" className="btn btn-outline-primary"
+                          disabled={consultandoHacienda || guardando || !formulario.identificacion.trim()}
+                          onClick={consultarHacienda}>
+                          {consultandoHacienda
+                            ? <><span className="spinner-border spinner-border-sm me-2" />Consultando Hacienda...</>
+                            : <><i className="bi bi-search me-2" />Consultar Hacienda</>}
+                        </button>
+                        <div className="small text-secondary mt-2">
+                          Autocompleta el nombre y el tipo de identificación disponibles en Hacienda.
+                          Teléfono, correo y dirección se ingresan manualmente.
+                        </div>
+                        {mensajeHacienda && <div className="alert alert-success py-2 mt-2 mb-0" role="status">{mensajeHacienda}</div>}
+                        {errorHacienda && <div className="alert alert-warning py-2 mt-2 mb-0" role="alert">{errorHacienda}</div>}
+                      </div>}
                       <div className="col-md-6">
                         <label className="form-label">Teléfono</label>
                         <input
