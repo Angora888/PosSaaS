@@ -57,6 +57,27 @@ Check(xml.Root?.Name.NamespaceName == "urn:possaas:internal:fiscal-draft:1",
 Check(xml.Root?.Attribute("transmitible")?.Value == "false", "Non-transmittable explicit flag");
 Check(draft.Contains("Café &amp; Té"), "XML escapes product name safely");
 Check(draft.Contains("1234567890123"), "Product CABYS snapshot appears");
+var findings = FiscalSalePreflight.Check(sale, null, products);
+Check(findings.Any(x => x.Contains("configuración fiscal", StringComparison.OrdinalIgnoreCase)),
+    "Missing issuer config flagged");
+Check(findings.Any(x => x.Contains("ubicación", StringComparison.OrdinalIgnoreCase)) == false,
+    "No false missing-location warning when issuer null");
+var issuer = new FiscalConfiguration {
+    RazonSocial = "Prueba S.A.", Identificacion = "3101123456",
+    ActividadEconomica = "620100", Correo = "prueba@example.com",
+    Provincia = "2", Canton = "01", Distrito = "01"
+};
+var validPreflight = FiscalSalePreflight.Check(sale, issuer, products);
+Check(validPreflight.Count == 0, "Balanced sale and populated metadata pass basic preflight");
+sale.Impuesto = 12m;
+Check(FiscalSalePreflight.Check(sale, issuer, products).Any(x => x.Contains("impuesto total")),
+    "Mismatched tax is detected");
+sale.Impuesto = 13m;
+sale.Detalles.First().Total = 114m;
+Check(FiscalSalePreflight.Check(sale, issuer, products).Any(x => x.Contains("subtotal + impuesto")),
+    "Mismatched line total is detected");
+sale.Detalles.First().Total = 113m;
+
 sale.Detalles.Clear();
 MustThrow<InvalidOperationException>(() => FiscalXmlDraftService.Generate(sale, null, null, products),
     "Empty sale rejected");
