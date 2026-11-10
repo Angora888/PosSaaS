@@ -25,6 +25,11 @@ function Productos() {
 
   const [mostrarModal, setMostrarModal] = useState(false);
   const [productoEditando, setProductoEditando] = useState(null);
+  const [cabysQuery, setCabysQuery] = useState("");
+  const [cabysResults, setCabysResults] = useState([]);
+  const [cabysLoading, setCabysLoading] = useState(false);
+  const [cabysError, setCabysError] = useState("");
+  const [cabysSelected, setCabysSelected] = useState(null);
 
   // Importación masiva desde Excel
   const [mostrarModalImportar, setMostrarModalImportar] = useState(false);
@@ -146,6 +151,32 @@ function Productos() {
     });
   }, [productos, busqueda]);
 
+  const resetCabys = () => {
+    setCabysQuery(""); setCabysResults([]); setCabysError(""); setCabysSelected(null);
+  };
+  const buscarCabys = async () => {
+    const q = cabysQuery.trim() || formulario.nombre.trim();
+    if (q.length < 3) { setCabysError("Ingresá al menos 3 caracteres."); return; }
+    setCabysLoading(true); setCabysResults([]); setCabysError("");
+    try {
+      const { data } = await api.get("/cabys/buscar", { params: { q } });
+      const items = Array.isArray(data) ? data : (data?.cabys || data?.resultados || data?.data || (data?.codigo ? [data] : []));
+      const options = (Array.isArray(items) ? items : []).map(item => ({
+        codigo: String(item.codigo ?? item.codigoCabys ?? item.Codigo ?? ""),
+        descripcion: String(item.descripcion ?? item.descripcionCompleta ?? item.Descripcion ?? ""),
+        impuesto: item.impuesto ?? item.iva ?? item.tarifa ?? null
+      })).filter(item => /^[0-9]{13}$/.test(item.codigo));
+      setCabysResults(options);
+      if (!options.length) setCabysError("Sin resultados. Probá con otra descripción o el código exacto.");
+    } catch (err) {
+      setCabysError(err.response?.data?.mensaje || "No fue posible consultar Hacienda.");
+    } finally { setCabysLoading(false); }
+  };
+  const seleccionarCabys = (item) => {
+    setFormulario(actual => ({ ...actual, codigoCabys: item.codigo }));
+    setCabysSelected(item); setCabysResults([]); setCabysError("");
+  };
+
   const limpiarFormulario = () => {
     setFormulario({
       categoriaId: "",
@@ -166,6 +197,7 @@ function Productos() {
   const abrirNuevoProducto = () => {
     setProductoEditando(null);
     limpiarFormulario();
+    resetCabys();
     setError("");
     setMensaje("");
     setMostrarModal(true);
@@ -173,6 +205,8 @@ function Productos() {
 
   const abrirEditarProducto = (producto) => {
     setProductoEditando(producto);
+    resetCabys();
+    setCabysQuery(producto.nombre || "");
 
     setFormulario({
       categoriaId: String(
@@ -1613,6 +1647,34 @@ function Productos() {
                         <input className="form-control" name="codigoCabys" value={formulario.codigoCabys}
                           maxLength={13} inputMode="numeric" pattern="[0-9]{13}"
                           onChange={cambiarCampo} placeholder="Código oficial CABYS" />
+                      </div>
+                      <div className="col-12">
+                        <label className="form-label fw-semibold">Buscar CABYS en Hacienda</label>
+                        <div className="input-group">
+                          <input className="form-control" value={cabysQuery} maxLength={100}
+                            onChange={e => setCabysQuery(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!cabysLoading) buscarCabys(); } }}
+                            placeholder="Ej. computadora portátil, arroz o código de 13 dígitos" />
+                          <button type="button" className="btn btn-outline-dark"
+                            disabled={cabysLoading || (cabysQuery.trim() || formulario.nombre.trim()).length < 3}
+                            onClick={buscarCabys}>
+                            {cabysLoading ? <span className="spinner-border spinner-border-sm" /> : "Buscar"}
+                          </button>
+                        </div>
+                        {cabysError && <div className="alert alert-warning py-2 mt-2 mb-0">{cabysError}</div>}
+                        {cabysSelected && <div className="alert alert-success py-2 mt-2 mb-0">
+                          CABYS seleccionado: <strong>{cabysSelected.codigo}</strong>
+                          <div className="small">{cabysSelected.descripcion}</div>
+                        </div>}
+                        {cabysResults.length > 0 && <div className="list-group mt-2" style={{ maxHeight: 240, overflowY: "auto" }}>
+                          {cabysResults.map(item => <button type="button" key={item.codigo}
+                            className="list-group-item list-group-item-action text-start" onClick={() => seleccionarCabys(item)}>
+                            <strong className="d-block">{item.codigo}</strong>
+                            <span>{item.descripcion}</span>
+                            {item.impuesto != null && <span className="badge bg-light text-dark border ms-2">IVA catálogo: {String(item.impuesto)}</span>}
+                          </button>)}
+                        </div>}
+                        <div className="form-text">Seleccioná el código correcto. El IVA se muestra como referencia y no se modifica automáticamente.</div>
                       </div>
                       <div className="col-md-6">
                         <label className="form-label fw-semibold">Unidad de medida</label>
