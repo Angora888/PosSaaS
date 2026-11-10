@@ -73,6 +73,7 @@ namespace PosSaaS.Api.Controllers
                         x.Id,
                         x.Nombre,
                         x.Identificacion,
+                        x.TipoIdentificacion,
                         x.Telefono,
                         x.Email,
                         x.Direccion,
@@ -104,6 +105,7 @@ namespace PosSaaS.Api.Controllers
                         x.Id,
                         x.Nombre,
                         x.Identificacion,
+                        x.TipoIdentificacion,
                         x.Telefono,
                         x.Email,
                         x.Direccion,
@@ -196,6 +198,7 @@ namespace PosSaaS.Api.Controllers
 
                     Identificacion =
                         identificacion,
+                    TipoIdentificacion = dto.TipoIdentificacion?.Trim(),
 
                     Telefono =
                         telefono,
@@ -311,6 +314,7 @@ namespace PosSaaS.Api.Controllers
 
             cliente.Identificacion =
                 identificacion;
+            cliente.TipoIdentificacion = dto.TipoIdentificacion?.Trim();
 
             cliente.Telefono =
                 telefono;
