@@ -20,6 +20,7 @@ function FiscalSettings() {
   const [errorDiagnostico, setErrorDiagnostico] = useState("");
   const [xmlDraft, setXmlDraft] = useState("");
   const [cargandoXml, setCargandoXml] = useState(false);
+  const [estadoXsd, setEstadoXsd] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -58,6 +59,16 @@ function FiscalSettings() {
       setErrorDiagnostico(err.response?.data?.mensaje || "No fue posible revisar esta venta.");
     } finally {
       setConsultando(false);
+    }
+  };
+
+  const consultarEsquemas = async () => {
+    setErrorDiagnostico("");
+    try {
+      const response = await api.get("/fiscal/schema/status");
+      setEstadoXsd(response.data);
+    } catch (err) {
+      setErrorDiagnostico("No fue posible consultar los esquemas instalados en la API.");
     }
   };
 
@@ -110,6 +121,21 @@ function FiscalSettings() {
       </div>
       {error && <div className="alert alert-danger" role="alert">{error}</div>}
       {mensaje && <div className="alert alert-success" role="status">{mensaje}</div>}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+          <h5 className="fw-bold">Esquemas oficiales de Hacienda 4.4</h5>
+          <p className="text-secondary small mb-2">Comprobá si la API tiene instalados los XSD oficiales. La disponibilidad del XSD no habilita la emisión.</p>
+          <button type="button" className="btn btn-outline-dark btn-sm" onClick={consultarEsquemas}>
+            Consultar XSD en la API
+          </button>
+          {estadoXsd && <div className="mt-3 small">
+            <div>Factura electrónica: <strong>{estadoXsd.facturaElectronica ? "XSD disponible" : "XSD pendiente"}</strong></div>
+            <div>Tiquete electrónico: <strong>{estadoXsd.tiqueteElectronico ? "XSD disponible" : "XSD pendiente"}</strong></div>
+            <div className="text-secondary mt-1">Emisión: deshabilitada</div>
+          </div>}
+        </div>
+      </div>
+
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-4">
           <h5 className="fw-bold">Diagnóstico fiscal de una venta</h5>
