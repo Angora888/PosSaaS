@@ -22,6 +22,27 @@ MustThrow<ArgumentOutOfRangeException>(() => FiscalNumbering.Consecutivo(0, 1, "
 MustThrow<ArgumentOutOfRangeException>(() => FiscalNumbering.Consecutivo(1, 0, "01", 1), "Invalid terminal rejected");
 MustThrow<ArgumentException>(() => FiscalNumbering.Consecutivo(1, 1, "99", 1), "Unknown document type rejected");
 
+// Configured codes, not internal database IDs; preserve leading zeros.
+Check(FiscalNumbering.ConsecutivoDesdeCodigos("001", "00001", "01", 1) ==
+    "00100001010000000001", "Fiscal branch + terminal formatting");
+Check(FiscalNumbering.ConsecutivoDesdeCodigos("002", "00123", "04", 42) ==
+    "00200123040000000042", "Second branch and tiquete format");
+MustThrow<ArgumentException>(() =>
+    FiscalNumbering.ConsecutivoDesdeCodigos("000", "00001", "01", 1),
+    "Fiscal branch zero rejected");
+MustThrow<ArgumentException>(() =>
+    FiscalNumbering.ConsecutivoDesdeCodigos("001", "00000", "01", 1),
+    "Fiscal terminal zero rejected");
+MustThrow<ArgumentException>(() =>
+    FiscalNumbering.ConsecutivoDesdeCodigos("1", "00001", "01", 1),
+    "Branch missing padding rejected");
+MustThrow<ArgumentException>(() =>
+    FiscalNumbering.ConsecutivoDesdeCodigos("001", "00001", "99", 1),
+    "Unsupported document type rejected");
+MustThrow<ArgumentOutOfRangeException>(() =>
+    FiscalNumbering.ConsecutivoDesdeCodigos("001", "00001", "01", 0),
+    "Zero sequence rejected");
+
 var date = new DateTimeOffset(2026, 11, 10, 10, 30, 0, TimeSpan.FromHours(-6));
 var clave = FiscalNumbering.Clave(date, "3-101-123456", consecutivo, codigoSeguridad: "12345678");
 Check(clave.Length == 50 && clave.All(char.IsAsciiDigit), "50 numeric digits");
