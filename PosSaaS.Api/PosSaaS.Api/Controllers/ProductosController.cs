@@ -49,6 +49,10 @@ namespace PosSaaS.Api.Controllers
                     x.Costo,
                     x.Precio,
                     x.ImpuestoPorcentaje,
+                    x.CodigoCabys,
+                    x.UnidadMedida,
+                    x.CodigoImpuesto,
+                    x.CodigoTarifaIva,
                     x.Activo,
 
                     categoria = new
@@ -85,6 +89,10 @@ namespace PosSaaS.Api.Controllers
                     x.Costo,
                     x.Precio,
                     x.ImpuestoPorcentaje,
+                    x.CodigoCabys,
+                    x.UnidadMedida,
+                    x.CodigoImpuesto,
+                    x.CodigoTarifaIva,
                     x.Activo,
                     x.CategoriaId,
 
@@ -163,6 +171,13 @@ namespace PosSaaS.Api.Controllers
                 return BadRequest(
                     "El impuesto no puede ser negativo.");
 
+            if (!string.IsNullOrWhiteSpace(dto.CodigoCabys) &&
+                (dto.CodigoCabys.Trim().Length != 13 || !dto.CodigoCabys.Trim().All(char.IsDigit)))
+                return BadRequest("CABYS debe contener exactamente 13 dígitos.");
+
+            if (!string.IsNullOrWhiteSpace(dto.UnidadMedida) && dto.UnidadMedida.Trim().Length > 20)
+                return BadRequest("La unidad de medida es demasiado larga.");
+
             var categoriaExiste =
                 await _context.Categorias.AnyAsync(x =>
                     x.Id == dto.CategoriaId &&
@@ -240,6 +255,10 @@ namespace PosSaaS.Api.Controllers
 
                 ImpuestoPorcentaje =
                     dto.ImpuestoPorcentaje,
+                CodigoCabys = dto.CodigoCabys?.Trim(),
+                UnidadMedida = string.IsNullOrWhiteSpace(dto.UnidadMedida) ? "Unid" : dto.UnidadMedida.Trim(),
+                CodigoImpuesto = dto.CodigoImpuesto?.Trim(),
+                CodigoTarifaIva = dto.CodigoTarifaIva?.Trim(),
 
                 Activo =
                     true
@@ -626,6 +645,13 @@ namespace PosSaaS.Api.Controllers
                 return BadRequest(
                     "El impuesto no puede ser negativo.");
 
+            if (!string.IsNullOrWhiteSpace(dto.CodigoCabys) &&
+                (dto.CodigoCabys.Trim().Length != 13 || !dto.CodigoCabys.Trim().All(char.IsDigit)))
+                return BadRequest("CABYS debe contener exactamente 13 dígitos.");
+
+            if (!string.IsNullOrWhiteSpace(dto.UnidadMedida) && dto.UnidadMedida.Trim().Length > 20)
+                return BadRequest("La unidad de medida es demasiado larga.");
+
             var categoriaExiste =
                 await _context.Categorias.AnyAsync(x =>
                     x.Id == dto.CategoriaId &&
@@ -702,6 +728,10 @@ namespace PosSaaS.Api.Controllers
 
             producto.ImpuestoPorcentaje =
                 dto.ImpuestoPorcentaje;
+            producto.CodigoCabys = dto.CodigoCabys?.Trim();
+            producto.UnidadMedida = string.IsNullOrWhiteSpace(dto.UnidadMedida) ? "Unid" : dto.UnidadMedida.Trim();
+            producto.CodigoImpuesto = dto.CodigoImpuesto?.Trim();
+            producto.CodigoTarifaIva = dto.CodigoTarifaIva?.Trim();
 
             await _context.SaveChangesAsync();
 
