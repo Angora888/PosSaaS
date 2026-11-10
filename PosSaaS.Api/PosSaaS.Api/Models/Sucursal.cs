@@ -12,6 +12,10 @@
 
         public string? Direccion { get; set; }
 
+        // Códigos tributarios configurados por el comercio; no se infieren del Id.
+        public string? CodigoSucursalFiscal { get; set; }
+        public string? CodigoTerminalFiscal { get; set; }
+
         public bool Activa { get; set; } = true;
 
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
