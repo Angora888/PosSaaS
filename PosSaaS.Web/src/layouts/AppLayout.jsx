@@ -157,6 +157,8 @@ function AppLayout({ children }) {
                   "Usuarios"
                 )}
 
+              {esAdmin && enlace("/fiscal", "bi-receipt-cutoff", "Facturación electrónica")}
+
               {puedeVerConfiguracion &&
                 enlace(
                   "/configuracion",
