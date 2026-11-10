@@ -1,0 +1,66 @@
+/* Modal del formulario de clientes. Bootstrap modal-dialog-scrollable needs
+   modal-body as a direct child, but here the form wraps header/body/footer. */
+.clientes-modal {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.clientes-modal .modal-dialog {
+  max-height: calc(100dvh - 2rem);
+}
+.clientes-modal .modal-content {
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+}
+.clientes-modal .modal-content > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100dvh - 2rem);
+}
+.clientes-modal .modal-header,
+.clientes-modal .modal-footer {
+  flex: 0 0 auto;
+}
+.clientes-modal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 575.98px) {
+  .clientes-modal {
+    padding: 0 !important;
+  }
+  .clientes-modal .modal-dialog {
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    transform: none !important;
+  }
+  .clientes-modal .modal-content,
+  .clientes-modal .modal-content > form {
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  .clientes-modal .modal-header {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  .clientes-modal .modal-body {
+    padding: 1rem !important;
+  }
+  .clientes-modal .modal-footer {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    background: #fff;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+  .clientes-modal .modal-footer .btn {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
