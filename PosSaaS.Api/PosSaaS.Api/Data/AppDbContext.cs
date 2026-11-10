@@ -11,6 +11,7 @@ namespace PosSaaS.Api.Data
         }
 
         public DbSet<Tenant> Tenants => Set<Tenant>();
+        public DbSet<FiscalConfiguration> FiscalConfigurations => Set<FiscalConfiguration>();
         public DbSet<Sucursal> Sucursales => Set<Sucursal>();
         public DbSet<Usuario> Usuarios => Set<Usuario>();
         public DbSet<PlatformUser> PlatformUsers => Set<PlatformUser>();
@@ -46,6 +47,27 @@ namespace PosSaaS.Api.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // FISCAL CONFIGURATION: one row per tenant, no live emission.
+            modelBuilder.Entity<FiscalConfiguration>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.TenantId).IsUnique();
+                entity.HasOne(x => x.Tenant).WithMany()
+                    .HasForeignKey(x => x.TenantId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(x => x.RazonSocial).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.TipoIdentificacion).HasMaxLength(2).IsRequired();
+                entity.Property(x => x.Identificacion).HasMaxLength(30).IsRequired();
+                entity.Property(x => x.ActividadEconomica).HasMaxLength(20).IsRequired();
+                entity.Property(x => x.Correo).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Telefono).HasMaxLength(30).IsRequired();
+                entity.Property(x => x.Provincia).HasMaxLength(2).IsRequired();
+                entity.Property(x => x.Canton).HasMaxLength(2).IsRequired();
+                entity.Property(x => x.Distrito).HasMaxLength(2).IsRequired();
+                entity.Property(x => x.OtrasSenas).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.Ambiente).HasMaxLength(20).IsRequired();
+            });
 
             // TENANT
             modelBuilder.Entity<Tenant>(entity =>
