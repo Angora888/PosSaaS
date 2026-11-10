@@ -1,5 +1,4 @@
 using System.Xml;
-using System.Xml.Linq;
 using System.Xml.Schema;
 
 namespace PosSaaS.Api.Services;
@@ -35,6 +34,10 @@ public sealed class FiscalSchemaValidator
         var schemaPath = SchemaPath(filename);
         if (!File.Exists(schemaPath))
             throw new FileNotFoundException("El esquema oficial 4.4 no está instalado en el servidor.");
+        // A valid XML must use the *exact* official root and schema namespace.
+        // Validating an unknown root against a set of schemas can otherwise
+        // produce only warnings, which must never be mistaken for success.
+        var expectedRoot = type == "01" ? "FacturaElectronica" : "TiqueteElectronico";
         var errors = new List<string>();
         var settings = new XmlReaderSettings
         {
@@ -51,6 +54,10 @@ public sealed class FiscalSchemaValidator
         }))
             settings.Schemas.Add(null, schemaReader);
         settings.Schemas.XmlResolver = null;
+        settings.Schemas.Compile();
+        var schemaNamespaces = settings.Schemas.Schemas()
+            .Cast<XmlSchema>().Select(x => x.TargetNamespace)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet();
         settings.ValidationEventHandler += (_, e) =>
         {
             if (errors.Count < 30)
@@ -58,6 +65,20 @@ public sealed class FiscalSchemaValidator
         };
         try
         {
+            using (var rootReader = XmlReader.Create(new StringReader(xml),
+                new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null,
+                    MaxCharactersInDocument = 2_000_000
+                }))
+            {
+                rootReader.MoveToContent();
+                if (rootReader.LocalName != expectedRoot ||
+                    !schemaNamespaces.Contains(rootReader.NamespaceURI))
+                    return new(false, new[] { "Elemento raíz o namespace incompatible con el XSD oficial." });
+            }
+
             using var stringReader = new StringReader(xml);
             using var reader = XmlReader.Create(stringReader, settings);
             while (reader.Read()) { }
