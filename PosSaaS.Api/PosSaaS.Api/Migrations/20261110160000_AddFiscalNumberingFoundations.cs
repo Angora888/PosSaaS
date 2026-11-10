@@ -23,6 +23,7 @@ public partial class AddFiscalNumberingFoundations : Migration
               "FechaActualizacion" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
               CONSTRAINT "CK_FiscalSequences_UltimoNumero" CHECK ("UltimoNumero" >= 0 AND "UltimoNumero" <= 9999999999)
             );
+            CREATE INDEX IF NOT EXISTS "IX_FiscalSequences_SucursalId" ON "FiscalSequences" ("SucursalId");
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_FiscalSequences_TenantId_SucursalId_Terminal_TipoDocumento"
               ON "FiscalSequences" ("TenantId","SucursalId","Terminal","TipoDocumento");
 
@@ -42,6 +43,8 @@ public partial class AddFiscalNumberingFoundations : Migration
               CONSTRAINT "CK_ElectronicDocuments_Clave" CHECK (length("Clave") = 50 AND "Clave" ~ '^[0-9]+$'),
               CONSTRAINT "CK_ElectronicDocuments_Consecutivo" CHECK (length("Consecutivo") = 20 AND "Consecutivo" ~ '^[0-9]+$')
             );
+            CREATE INDEX IF NOT EXISTS "IX_ElectronicDocuments_SucursalId" ON "ElectronicDocuments" ("SucursalId");
+            CREATE INDEX IF NOT EXISTS "IX_ElectronicDocuments_VentaId" ON "ElectronicDocuments" ("VentaId");
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_ElectronicDocuments_Clave" ON "ElectronicDocuments" ("Clave");
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_ElectronicDocuments_TenantId_Consecutivo"
               ON "ElectronicDocuments" ("TenantId","Consecutivo");
