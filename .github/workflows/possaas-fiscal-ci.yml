@@ -1,0 +1,46 @@
+name: POS SaaS fiscal foundations CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PosSaaS.Api/**'
+      - 'PosSaaS.Web/**'
+      - 'scripts/install-hacienda-xsd.sh'
+      - '.github/workflows/possaas-fiscal-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore API
+        run: dotnet restore PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj
+      - name: Compile API
+        run: dotnet build PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj --configuration Release --no-restore
+      - name: Check XSD installation (without issuing invoices)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install-hacienda-xsd.sh
+          test -s PosSaaS.Api/PosSaaS.Api/FiscalSchemas/v4.4/FacturaElectronica_V4.4.xsd
+          test -s PosSaaS.Api/PosSaaS.Api/FiscalSchemas/v4.4/TiqueteElectronico_V4.4.xsd
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PosSaaS.Web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: PosSaaS.Web/package-lock.json
+      - run: npm ci
+      - run: npm run build
