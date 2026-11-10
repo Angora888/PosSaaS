@@ -278,10 +278,12 @@ namespace PosSaaS.Api.Controllers
 
             var yaFacturo = await _context.ElectronicDocuments.AnyAsync(x =>
                 x.TenantId == _tenantContext.TenantId && x.SucursalId == id);
-            if (yaFacturo &&
+            var yaReservoNumeracion = await _context.FiscalSequences.AnyAsync(x =>
+                x.TenantId == _tenantContext.TenantId && x.SucursalId == id && x.UltimoNumero > 0);
+            if ((yaFacturo || yaReservoNumeracion) &&
                 (codigoSucursal != sucursal.CodigoSucursalFiscal ||
                  codigoTerminal != sucursal.CodigoTerminalFiscal))
-                return BadRequest("Esta sucursal ya tiene documentos fiscales; sus códigos no pueden cambiarse.");
+                return BadRequest("Esta sucursal ya tiene numeración o documentos fiscales; sus códigos no pueden cambiarse.");
 
             sucursal.Nombre =
                 nombre;
