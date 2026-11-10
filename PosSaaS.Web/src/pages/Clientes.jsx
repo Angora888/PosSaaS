@@ -25,6 +25,7 @@ function Clientes() {
   const [formulario, setFormulario] = useState({
     nombre: "",
     identificacion: "",
+    tipoIdentificacion: "",
     telefono: "",
     email: "",
     direccion: "",
@@ -109,6 +110,7 @@ function Clientes() {
     setFormulario({
       nombre: "",
       identificacion: "",
+    tipoIdentificacion: "",
       telefono: "",
       email: "",
       direccion: "",
@@ -128,6 +130,7 @@ function Clientes() {
     setFormulario({
       nombre: cliente.nombre || "",
       identificacion: cliente.identificacion || "",
+      tipoIdentificacion: cliente.tipoIdentificacion || "",
       telefono: cliente.telefono || "",
       email: cliente.email || "",
       direccion: cliente.direccion || "",
@@ -180,6 +183,7 @@ function Clientes() {
       const payload = {
         nombre: formulario.nombre.trim(),
         identificacion: formulario.identificacion.trim() || null,
+        tipoIdentificacion: formulario.tipoIdentificacion || null,
         telefono: formulario.telefono.trim() || null,
         email: formulario.email.trim() || null,
         direccion: formulario.direccion.trim() || null,
@@ -766,6 +770,16 @@ function Clientes() {
                         />
                       </div>
                       <div className="col-md-5">
+                         <label className="form-label">Tipo de identificación (Hacienda)</label>
+                         <select className="form-select" name="tipoIdentificacion" value={formulario.tipoIdentificacion} onChange={cambiarCampo}>
+                           <option value="">Sin especificar</option>
+                           <option value="01">Cédula física</option>
+                           <option value="02">Cédula jurídica</option>
+                           <option value="03">DIMEX</option>
+                           <option value="04">NITE</option>
+                         </select>
+                       </div>
+                       <div className="col-md-5">
                         <label className="form-label">Identificación</label>
                         <input
                           type="text"
