@@ -111,7 +111,6 @@ namespace PosSaaS.Api.Data
 
                 entity.Property(x => x.Identificacion)
                     .HasMaxLength(50);
-                entity.Property(x => x.TipoIdentificacion).HasMaxLength(2);
 
                 entity.Property(x => x.Email)
                     .HasMaxLength(150);
@@ -667,6 +666,8 @@ namespace PosSaaS.Api.Data
 
                 entity.Property(x => x.Identificacion)
                     .HasMaxLength(50);
+                entity.Property(x => x.TipoIdentificacion)
+                    .HasMaxLength(2);
 
                 entity.Property(x => x.Telefono)
                     .HasMaxLength(50);
