@@ -136,6 +136,9 @@ namespace PosSaaS.Api.Data
 
                 entity.Property(x => x.Direccion)
                     .HasMaxLength(500);
+                entity.Property(x => x.CodigoSucursalFiscal).HasMaxLength(3);
+                entity.Property(x => x.CodigoTerminalFiscal).HasMaxLength(5);
+                entity.HasIndex(x => new { x.TenantId, x.CodigoSucursalFiscal }).IsUnique();
 
                 entity.HasOne(x => x.Tenant)
                     .WithMany(x => x.Sucursales)
