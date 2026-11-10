@@ -345,7 +345,7 @@ namespace PosSaaS.Api.Controllers
                     return BadRequest("El redondeo a ₡10 solo aplica a ventas pagadas totalmente en efectivo.");
                 }
                 var totalEfectivo = dto.AplicarRedondeoEfectivo
-                    ? Math.Round(totalVenta / 10m, 0, MidpointRounding.AwayFromZero) * 10m
+                    ? PosSaaS.Api.Services.CashRounding.NearestTen(totalVenta)
                     : totalVenta;
                 var ajusteEfectivo = totalEfectivo - totalVenta;
                 if (totalPagado != totalEfectivo)
