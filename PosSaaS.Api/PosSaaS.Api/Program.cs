@@ -77,6 +77,9 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
+// Reserved for the future signed issuance workflow; NOT used by diagnostic endpoints.
+builder.Services.AddScoped<FiscalSequenceAllocator>();
+
 
 // =====================================================
 // JWT
