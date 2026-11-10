@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import AppLayout from "../layouts/AppLayout";
 import api from "../services/api";
 import "../styles/clientes-modal.css";
@@ -17,6 +18,30 @@ function Clientes() {
   const [mensaje, setMensaje] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
+  const [clientViewport, setClientViewport] = useState(null);
+
+  useEffect(() => {
+    if (!mostrarModal) return;
+    const viewport = window.visualViewport;
+    const update = () => {
+      setClientViewport({
+        top: Math.max(0, viewport?.offsetTop ?? 0),
+        height: Math.max(180, viewport?.height ?? window.innerHeight),
+      });
+    };
+    update();
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      document.body.style.overflow = oldOverflow;
+    };
+  }, [mostrarModal]);
   const [consultandoHacienda, setConsultandoHacienda] = useState(false);
   const [mensajeHacienda, setMensajeHacienda] = useState("");
   const [errorHacienda, setErrorHacienda] = useState("");
@@ -793,14 +818,14 @@ function Clientes() {
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show"></div>
-        </>
+        </>, document.body
       )}
 
-      {mostrarModal && (
+      {mostrarModal && createPortal(
         <>
-          <div className="modal fade show d-block" tabIndex="-1">
-            <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div className="modal fade show d-block clientes-modal" tabIndex="-1" role="dialog" aria-modal="true" aria-label="Formulario de cliente"
+            style={{ top: clientViewport?.top ?? 0, height: clientViewport?.height ?? "100dvh" }}>
+            <div className="modal-dialog modal-lg modal-dialog-scrollable">
               <div className="modal-content border-0 shadow">
                 <form onSubmit={guardarCliente}>
                   <div className="modal-header">
