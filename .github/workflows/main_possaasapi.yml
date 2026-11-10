@@ -10,6 +10,11 @@ on:
 
   workflow_dispatch:
 
+# Prevent concurrent OneDeploy publishing attempts to the same Azure App Service.
+concurrency:
+  group: possaasapi-production-deploy
+  cancel-in-progress: false
+
 env:
   PROJECT_PATH: PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj
   PUBLISH_PATH: ${{ github.workspace }}/publish
