@@ -374,9 +374,19 @@ function PuntoVenta() {
   );
 
   const esEfectivo = metodoPagoActual?.tipo?.toUpperCase() === "EFECTIVO";
-  const recibidoNumero = Number(montoRecibido) || 0;
-  const cambio = esEfectivo ? Math.max(0, recibidoNumero - resumen.total) : 0;
-  const efectivoInsuficiente = esEfectivo && recibidoNumero < resumen.total;
+  // Smallest circulating CR coin in 2026: ₡10.
+  // Keep the exact tax-inclusive total; record cash adjustment separately.
+  const totalExacto = Number(resumen.total.toFixed(2));
+  const totalEfectivo = Math.round(totalExacto / 10) * 10;
+  const totalCobrar = esEfectivo ? totalEfectivo : totalExacto;
+  const ajusteEfectivo = esEfectivo ? Number((totalEfectivo - totalExacto).toFixed(2)) : 0;
+  const recibidoNumero = montoRecibido === "" ? NaN : Number(montoRecibido);
+  const montoNoRepresentable = esEfectivo &&
+    (!Number.isFinite(recibidoNumero) || recibidoNumero < 0 || recibidoNumero % 10 !== 0);
+  const cambio = esEfectivo && Number.isFinite(recibidoNumero)
+    ? Math.max(0, recibidoNumero - totalCobrar) : 0;
+  const efectivoInsuficiente = esEfectivo &&
+    (!Number.isFinite(recibidoNumero) || recibidoNumero < totalCobrar);
 
   const formatearColones = (monto) =>
     new Intl.NumberFormat("es-CR", {
@@ -425,7 +435,7 @@ function PuntoVenta() {
     const metodo = metodosPago.find((x) => String(x.id) === String(metodoId));
     setMontoRecibido(
       metodo?.tipo?.toUpperCase() === "EFECTIVO"
-        ? String(Math.ceil(resumen.total))
+        ? String(Math.ceil(resumen.total / 10) * 10)
         : ""
     );
     setMostrarModalPago(true);
@@ -449,7 +459,7 @@ function PuntoVenta() {
     const metodo = metodosPago.find((x) => String(x.id) === String(id));
     setMontoRecibido(
       metodo?.tipo?.toUpperCase() === "EFECTIVO"
-        ? String(Math.ceil(resumen.total))
+        ? String(Math.ceil(resumen.total / 10) * 10)
         : ""
     );
   };
@@ -460,8 +470,12 @@ function PuntoVenta() {
       return;
     }
 
+    if (montoNoRepresentable) {
+      setErrorVenta("En efectivo ingresá un monto múltiplo de ₡10, que es la moneda mínima disponible.");
+      return;
+    }
     if (efectivoInsuficiente) {
-      setErrorVenta("El monto recibido es menor al total de la venta.");
+      setErrorVenta("El monto recibido es menor al total en efectivo.");
       return;
     }
 
@@ -471,6 +485,7 @@ function PuntoVenta() {
 
       const payload = {
         cajaSesionId: sesionCaja.id,
+        aplicarRedondeoEfectivo: esEfectivo,
         clienteId: clienteSeleccionado ? Number(clienteSeleccionado) : null,
         productos: carrito.map((item) => ({
           productoId: item.id,
@@ -479,7 +494,7 @@ function PuntoVenta() {
         pagos: [
           {
             metodoPagoId: Number(metodoPagoSeleccionado),
-            monto: Number(resumen.total.toFixed(2)),
+            monto: Number(totalCobrar.toFixed(2)),
             referencia: null,
           },
         ],
@@ -501,6 +516,8 @@ function PuntoVenta() {
         ...detalleVenta,
         recibido: esEfectivo ? recibidoNumero : null,
         cambio: esEfectivo ? cambio : null,
+        ajusteRedondeoEfectivo: esEfectivo ? ajusteEfectivo : 0,
+        totalCobrado: totalCobrar,
         metodoPago: metodoPagoActual?.nombre || "",
       });
 
@@ -569,6 +586,8 @@ function PuntoVenta() {
       <div class="row"><span>Subtotal</span><span>${formatearColones(ticket.subtotal)}</span></div>
       <div class="row"><span>IVA</span><span>${formatearColones(ticket.impuesto)}</span></div>
       <div class="row bold"><span>Total</span><span>${formatearColones(ticket.total)}</span></div>
+      ${ticket.ajusteRedondeoEfectivo ? `<div class="row"><span>Ajuste efectivo</span><span>${formatearColones(ticket.ajusteRedondeoEfectivo)}</span></div>` : ""}
+      ${ticket.totalCobrado != null ? `<div class="row bold"><span>Cobrado</span><span>${formatearColones(ticket.totalCobrado)}</span></div>` : ""}
       <div class="line"></div>${pagosTicket
         .map(
           (p) =>
@@ -939,9 +958,9 @@ function PuntoVenta() {
                             <input
                               type="number"
                               min="0"
-                              step="1"
+                              step="10"
                               inputMode="numeric"
-                              className={`form-control ${efectivoInsuficiente ? "is-invalid" : ""}`}
+                              className={`form-control ${(efectivoInsuficiente || montoNoRepresentable) ? "is-invalid" : ""}`}
                               value={montoRecibido}
                               onChange={(e) => setMontoRecibido(e.target.value)}
                               autoFocus
@@ -949,21 +968,22 @@ function PuntoVenta() {
                           </div>
 
                           <div className="d-flex flex-wrap gap-2 mt-2">
-                            {[resumen.total, Math.ceil(resumen.total / 1000) * 1000, Math.ceil(resumen.total / 5000) * 5000]
+                            {[totalCobrar, Math.ceil(totalCobrar / 1000) * 1000, Math.ceil(totalCobrar / 5000) * 5000]
                               .filter((valor, index, arr) => arr.indexOf(valor) === index)
                               .map((valor) => (
                                 <button
                                   type="button"
                                   key={valor}
                                   className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => setMontoRecibido(String(Math.ceil(valor)))}
+                                  onClick={() => setMontoRecibido(String(valor))}
                                 >
                                   {formatearColones(valor)}
                                 </button>
                               ))}
                           </div>
 
-                          <div className={`rounded-3 p-3 mt-3 ${efectivoInsuficiente ? "bg-danger-subtle" : "bg-success-subtle"}`}>
+                          {montoNoRepresentable && <div className="text-danger small mt-2">Solo montos en múltiplos de ₡10.</div>}
+                          <div className={`rounded-3 p-3 mt-3 ${(efectivoInsuficiente || montoNoRepresentable) ? "bg-danger-subtle" : "bg-success-subtle"}`}>
                             <div className="d-flex justify-content-between align-items-center">
                               <span className="fw-semibold">Cambio</span>
                               <strong className="fs-4">{formatearColones(cambio)}</strong>
@@ -979,8 +999,17 @@ function PuntoVenta() {
                       <div className="d-flex justify-content-between mb-2"><span>Subtotal</span><span>{formatearColones(resumen.subtotal)}</span></div>
                       <div className="d-flex justify-content-between mb-2"><span>IVA</span><span>{formatearColones(resumen.impuesto)}</span></div>
                       <div className="d-flex justify-content-between border-top pt-3 mt-3">
-                        <strong className="fs-5">Total</strong><strong className="fs-3">{formatearColones(resumen.total)}</strong>
+                        <strong className="fs-5">Total de la venta</strong><strong className="fs-3">{formatearColones(totalExacto)}</strong>
                       </div>
+                      {esEfectivo && <div className="mt-3 pt-2 border-top">
+                        <div className="d-flex justify-content-between text-secondary small">
+                          <span>Ajuste de redondeo de efectivo</span><span>{ajusteEfectivo > 0 ? "+" : ""}{formatearColones(ajusteEfectivo)}</span>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center mt-2">
+                          <strong>Total a cobrar en efectivo</strong><strong className="fs-4">{formatearColones(totalCobrar)}</strong>
+                        </div>
+                        <div className="small text-secondary mt-1">El total de venta y el IVA no cambian; el ajuste queda registrado en caja.</div>
+                      </div>}
                     </div>
                   </div>
                 </div>
@@ -990,12 +1019,12 @@ function PuntoVenta() {
                   <button
                     className="btn btn-dark px-4"
                     onClick={procesarVenta}
-                    disabled={procesandoVenta || !metodoPagoSeleccionado || efectivoInsuficiente}
+                    disabled={procesandoVenta || !metodoPagoSeleccionado || efectivoInsuficiente || montoNoRepresentable}
                   >
                     {procesandoVenta ? (
                       <><span className="spinner-border spinner-border-sm me-2" />Procesando...</>
                     ) : (
-                      <><i className="bi bi-check-lg me-2"></i>Confirmar {formatearColones(resumen.total)}</>
+                      <><i className="bi bi-check-lg me-2"></i>Confirmar {formatearColones(totalCobrar)}</>
                     )}
                   </button>
                 </div>
