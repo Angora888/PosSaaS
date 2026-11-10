@@ -22,6 +22,29 @@ namespace PosSaaS.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("PosSaaS.Api.Models.FiscalConfiguration", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<int>("TenantId").HasColumnType("integer");
+                    b.Property<bool>("EmisionHabilitada").HasColumnType("boolean");
+                    b.Property<DateTime>("FechaActualizacion").HasColumnType("timestamp with time zone");
+                    b.Property<string>("ActividadEconomica").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)");
+                    b.Property<string>("Ambiente").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)");
+                    b.Property<string>("Canton").IsRequired().HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<string>("Correo").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("Distrito").IsRequired().HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<string>("Identificacion").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)");
+                    b.Property<string>("OtrasSenas").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)");
+                    b.Property<string>("Provincia").IsRequired().HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<string>("RazonSocial").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("Telefono").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)");
+                    b.Property<string>("TipoIdentificacion").IsRequired().HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.HasKey("Id");
+                    b.HasIndex("TenantId").IsUnique();
+                    b.ToTable("FiscalConfigurations");
+                });
+
             modelBuilder.Entity("PosSaaS.Api.Models.Caja", b =>
                 {
                     b.Property<int>("Id")
@@ -772,6 +795,16 @@ namespace PosSaaS.Api.Migrations
                     b.HasIndex("VentaId");
 
                     b.ToTable("VentaDetalles");
+                });
+
+            modelBuilder.Entity("PosSaaS.Api.Models.FiscalConfiguration", b =>
+                {
+                    b.HasOne("PosSaaS.Api.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("PosSaaS.Api.Models.Caja", b =>
