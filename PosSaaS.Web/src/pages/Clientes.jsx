@@ -146,8 +146,26 @@ function Clientes() {
       });
       setMensajeHacienda("Datos encontrados en Hacienda. Revisalos antes de guardar.");
     } catch (err) {
+      const status = err.response?.status;
       const detail = err.response?.data;
-      setErrorHacienda(detail?.mensaje || "No se pudo consultar Hacienda. Podés completar el cliente manualmente.");
+      const apiMessage = typeof detail?.mensaje === "string" ? detail.mensaje : null;
+      // A 404 produced by the POS API route is different from a JSON 404
+      // deliberately returned by the Hacienda proxy.
+      if (status === 404 && !apiMessage) {
+        setErrorHacienda("La versión de la API POS en Azure aún no tiene disponible la consulta a Hacienda (HTTP 404). Revisá el despliegue del backend.");
+      } else if (status === 404) {
+        setErrorHacienda(apiMessage);
+      } else if (status === 401 || status === 403) {
+        setErrorHacienda("La sesión no tiene autorización para consultar. Volvé a iniciar sesión.");
+      } else if (status === 502 || status === 503 || status === 504) {
+        setErrorHacienda(apiMessage || "Hacienda no está respondiendo. Podés completar el cliente manualmente.");
+      } else if (status === 400) {
+        setErrorHacienda(apiMessage || "Verificá el número de identificación.");
+      } else if (!err.response) {
+        setErrorHacienda("No se pudo conectar con la API de POS SaaS. Revisá la conexión y el despliegue de Azure.");
+      } else {
+        setErrorHacienda(apiMessage || `No se pudo completar la consulta (HTTP ${status}). Ingresá los datos manualmente.`);
+      }
     } finally {
       setConsultandoHacienda(false);
     }
