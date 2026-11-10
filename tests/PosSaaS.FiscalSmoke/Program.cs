@@ -15,6 +15,14 @@ void MustThrow<T>(Action action, string message) where T : Exception
     throw new InvalidOperationException("FAIL: " + message);
 }
 
+// Physical colones: rounding affects cash settlement only, not fiscal totals.
+Check(CashRounding.NearestTen(1412.50m) == 1410m, "₡1,412.50 rounds to ₡1,410 cash");
+Check(CashRounding.NearestTen(1415m) == 1420m, "₡1,415 rounds to ₡1,420 cash");
+Check(CashRounding.NearestTen(1405m) == 1410m, "Midpoint rounds away from zero");
+Check(CashRounding.NearestTen(1400m) == 1400m, "Whole ten is unchanged");
+Check(CashRounding.NearestTen(0m) == 0m, "Zero is unchanged");
+MustThrow<ArgumentOutOfRangeException>(() => CashRounding.NearestTen(-1m), "Negative totals rejected");
+
 var consecutivo = FiscalNumbering.Consecutivo(1, 1, "01", 1);
 Check(consecutivo == "00100001010000000001", "Consecutivo 20 digits and expected prefix");
 Check(consecutivo.Length == 20 && consecutivo.All(char.IsAsciiDigit), "Consecutivo numeric");
