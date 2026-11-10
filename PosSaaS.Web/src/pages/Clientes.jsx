@@ -949,8 +949,7 @@ function Clientes() {
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show"></div>
-        </>
+        </>, document.body
       )}
     </AppLayout>
   );
