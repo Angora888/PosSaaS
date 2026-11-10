@@ -66,7 +66,17 @@ public sealed class HaciendaConsultaController : ControllerBase
             if (response.Content.Headers.ContentLength is > 131072)
                 return StatusCode(502, new { mensaje = "Respuesta de Hacienda demasiado grande." });
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var document = await JsonDocument.ParseAsync(stream,
+            await using var bounded = new MemoryStream();
+            var buffer = new byte[8192];
+            int read;
+            while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+            {
+                if (bounded.Length + read > 131072)
+                    return StatusCode(502, new { mensaje = "Respuesta de Hacienda demasiado grande." });
+                await bounded.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+            bounded.Position = 0;
+            using var document = await JsonDocument.ParseAsync(bounded,
                 new JsonDocumentOptions { MaxDepth = 16 }, cancellationToken);
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object ||
