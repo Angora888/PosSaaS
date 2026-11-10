@@ -15,6 +15,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
+// Public Hacienda taxpayer lookup: server-side only, with cache and bounded timeout.
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("HaciendaPublica", client =>
+{
+    client.BaseAddress = new Uri("https://api.hacienda.go.cr/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = false
+});
+
 // Hacienda v4.4 offline validation; fails closed if official XSD files are absent.
 builder.Services.AddSingleton<FiscalSchemaValidator>();
 
