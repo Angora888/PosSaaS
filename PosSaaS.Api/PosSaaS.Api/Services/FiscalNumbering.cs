@@ -18,20 +18,29 @@ public static class FiscalNumbering
 
     // 506 + ddMMyy + 12-digit issuer + 20-digit consecutive + situation + 8-digit security.
     // Caller must persist uniqueness atomically before producing a fiscal document.
+    private static bool IsAsciiDigit(char c) => c is >= '0' and <= '9';
+
     public static string Clave(DateTimeOffset fechaCostaRica, string identificacion,
         string consecutivo, string situacion = "1", string? codigoSeguridad = null)
     {
-        var cedula = new string((identificacion ?? "").Where(char.IsDigit).ToArray());
-        if (cedula.Length is < 9 or > 12 || cedula.Length != (identificacion ?? "").Count(char.IsDigit))
+        if (fechaCostaRica.Offset != TimeSpan.FromHours(-6))
+            throw new ArgumentException("La fecha debe indicarse en horario de Costa Rica (UTC-06:00).", nameof(fechaCostaRica));
+
+        var input = (identificacion ?? "").Trim();
+        if (input.Any(c => !(c is >= '0' and <= '9') && c != '-'))
+            throw new ArgumentException("Identificación solo puede contener dígitos ASCII y guiones.", nameof(identificacion));
+
+        var cedula = input.Replace("-", "");
+        if (cedula.Length is < 9 or > 12 || !cedula.All(IsAsciiDigit))
             throw new ArgumentException("Identificación debe contener entre 9 y 12 dígitos.", nameof(identificacion));
-        if (consecutivo.Length != 20 || !consecutivo.All(char.IsDigit))
+        if (consecutivo is null || consecutivo.Length != 20 || !consecutivo.All(IsAsciiDigit))
             throw new ArgumentException("Consecutivo debe contener 20 dígitos.", nameof(consecutivo));
         if (!new[] { "1", "2", "3" }.Contains(situacion))
             throw new ArgumentException("Situación inválida.", nameof(situacion));
 
         var security = codigoSeguridad ?? RandomNumberGenerator.GetInt32(0, 100000000)
             .ToString("D8", CultureInfo.InvariantCulture);
-        if (security.Length != 8 || !security.All(char.IsDigit))
+        if (security.Length != 8 || !security.All(IsAsciiDigit))
             throw new ArgumentException("Código de seguridad debe tener 8 dígitos.", nameof(codigoSeguridad));
 
         return "506" + fechaCostaRica.ToString("ddMMyy", CultureInfo.InvariantCulture) +
