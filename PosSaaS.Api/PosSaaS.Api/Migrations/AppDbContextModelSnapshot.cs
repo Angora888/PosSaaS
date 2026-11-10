@@ -792,6 +792,10 @@ namespace PosSaaS.Api.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<decimal>("AjusteRedondeoEfectivo")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<int>("UsuarioId")
                         .HasColumnType("integer");
 
