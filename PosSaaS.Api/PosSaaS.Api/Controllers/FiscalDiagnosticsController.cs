@@ -59,27 +59,8 @@ public sealed class FiscalDiagnosticsController : ControllerBase
         var productIds = venta.Detalles.Select(d => d.ProductoId).Distinct().ToArray();
         var products = await _db.Productos.AsNoTracking()
             .Where(p => p.TenantId == tenantId && productIds.Contains(p.Id))
-            .Select(p => new { p.Id, p.CodigoCabys, p.UnidadMedida, p.CodigoImpuesto, p.CodigoTarifaIva })
-            .ToListAsync();
-        var warnings = new List<string>();
-        if (fiscal == null || string.IsNullOrWhiteSpace(fiscal.Identificacion) ||
-            string.IsNullOrWhiteSpace(fiscal.RazonSocial))
-            warnings.Add("Configuración fiscal del emisor incompleta.");
-        if (fiscal != null && string.IsNullOrWhiteSpace(fiscal.ActividadEconomica))
-            warnings.Add("Falta actividad económica.");
-        if (venta.Detalles.Count == 0) warnings.Add("Venta sin líneas.");
-        if (venta.Estado != "COMPLETADA") warnings.Add("La venta no está completada.");
-        foreach (var item in products)
-        {
-            if (string.IsNullOrWhiteSpace(item.CodigoCabys))
-                warnings.Add($"Producto {item.Id}: falta código CABYS.");
-            if (string.IsNullOrWhiteSpace(item.UnidadMedida))
-                warnings.Add($"Producto {item.Id}: falta unidad de medida.");
-            if (string.IsNullOrWhiteSpace(item.CodigoImpuesto) ||
-                string.IsNullOrWhiteSpace(item.CodigoTarifaIva))
-                warnings.Add($"Producto {item.Id}: clasificación tributaria pendiente.");
-        }
-        if (products.Count != productIds.Length) warnings.Add("Hay productos de la venta que ya no están disponibles.");
+            .ToDictionaryAsync(p => p.Id);
+        var warnings = FiscalSalePreflight.Check(venta, fiscal, products);
 
         return Ok(new
         {
