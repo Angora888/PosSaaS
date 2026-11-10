@@ -12,6 +12,8 @@ namespace PosSaaS.Api.Data
 
         public DbSet<Tenant> Tenants => Set<Tenant>();
         public DbSet<FiscalConfiguration> FiscalConfigurations => Set<FiscalConfiguration>();
+        public DbSet<FiscalSequence> FiscalSequences => Set<FiscalSequence>();
+        public DbSet<ElectronicDocument> ElectronicDocuments => Set<ElectronicDocument>();
         public DbSet<Sucursal> Sucursales => Set<Sucursal>();
         public DbSet<Usuario> Usuarios => Set<Usuario>();
         public DbSet<PlatformUser> PlatformUsers => Set<PlatformUser>();
@@ -47,6 +49,33 @@ namespace PosSaaS.Api.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // Reserved fiscal numbering; will only advance within a future issuance transaction.
+            modelBuilder.Entity<FiscalSequence>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Terminal).IsRequired().HasMaxLength(5);
+                entity.Property(x => x.TipoDocumento).IsRequired().HasMaxLength(2);
+                entity.HasIndex(x => new { x.TenantId, x.SucursalId, x.Terminal, x.TipoDocumento }).IsUnique();
+                entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Sucursal>().WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ElectronicDocument>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.TipoDocumento).IsRequired().HasMaxLength(2);
+                entity.Property(x => x.Consecutivo).IsRequired().HasMaxLength(20);
+                entity.Property(x => x.Clave).IsRequired().HasMaxLength(50);
+                entity.Property(x => x.Estado).IsRequired().HasMaxLength(30);
+                entity.HasIndex(x => x.Clave).IsUnique();
+                entity.HasIndex(x => new { x.TenantId, x.Consecutivo }).IsUnique();
+                entity.HasIndex(x => new { x.TenantId, x.VentaId, x.TipoDocumento })
+                    .IsUnique().HasFilter("\\"VentaId\\" IS NOT NULL AND \\"TipoDocumento\\" IN ('01','04')");
+                entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Sucursal>().WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Venta>().WithMany().HasForeignKey(x => x.VentaId).OnDelete(DeleteBehavior.Restrict);
+            });
 
             // FISCAL CONFIGURATION: one row per tenant, no live emission.
             modelBuilder.Entity<FiscalConfiguration>(entity =>
