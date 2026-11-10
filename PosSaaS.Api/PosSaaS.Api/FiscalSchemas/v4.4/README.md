@@ -7,6 +7,16 @@ si alguien intenta validar sin los XSD. No se emitirán ni transmitirán documen
 Fuente oficial:
 https://atv.hacienda.go.cr/ATV/ComprobanteElectronico/frmAnexosyEstructuras.aspx
 
+Instalación automatizada, desde la raíz del repositorio:
+
+```bash
+bash scripts/install-hacienda-xsd.sh
+```
+
+Este script obtiene los archivos directamente del dominio oficial de Hacienda,
+comprueba que el contenido sea un XSD con namespace v4.4 e imprime SHA-256.
+Si falla la descarga o la comprobación, no se debe habilitar emisión.
+
 Descargar desde la sección v4.4, tras verificar su origen y versión:
 - `FacturaElectronica_V4.4.xsd`
 - `TiqueteElectronico_V4.4.xsd`
@@ -30,3 +40,19 @@ aportado por un usuario Admin autenticado y devuelve errores.
 4. Implementar firma XAdES-EPES, secuencias transaccionales y API Hacienda.
 
 **No existe emisión electrónica activa.**
+
+
+## Verificación y despliegue
+La acción `.github/workflows/possaas-fiscal-ci.yml` compila el backend, compila
+el frontend e intenta descargar/verificar los XSD oficiales. Un fallo de red
+en Hacienda puede impedir completar esta prueba y **no** significa que el
+XSD esté instalado en Azure. Para publicar con esquemas, ejecutar
+`scripts/install-hacienda-xsd.sh` antes de `dotnet publish`; la configuración
+del proyecto copia los XSD disponibles al resultado de publicación.
+
+**ATENCIÓN:** el instalador valida estructura y namespace, pero no fija todavía
+un SHA-256 de referencia aprobada. La integridad y versión exacta deberán
+revisarse antes de tratar los esquemas como aptos para producción.
+
+En la API, `/api/fiscal/schema/status` y `/api/fiscal/schema/validate`
+requieren un administrador autenticado. Ninguno emite, firma ni transmite.
