@@ -21,6 +21,20 @@ function FiscalSettings() {
   const [xmlDraft, setXmlDraft] = useState("");
   const [cargandoXml, setCargandoXml] = useState(false);
   const [estadoXsd, setEstadoXsd] = useState(null);
+  const [sucursales, setSucursales] = useState([]);
+  const [sucursalFiscal, setSucursalFiscal] = useState("");
+  const [tipoFiscal, setTipoFiscal] = useState("01");
+  const [numeroPreview, setNumeroPreview] = useState(null);
+  const [numeroError, setNumeroError] = useState("");
+  const [numeroCargando, setNumeroCargando] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+    api.get("/Sucursales")
+      .then(({ data }) => { if (activo) setSucursales(data || []); })
+      .catch(() => { if (activo) setNumeroError("No se pudieron consultar las sucursales."); });
+    return () => { activo = false; };
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -59,6 +73,27 @@ function FiscalSettings() {
       setErrorDiagnostico(err.response?.data?.mensaje || "No fue posible revisar esta venta.");
     } finally {
       setConsultando(false);
+    }
+  };
+
+  const consultarNumero = async (e) => {
+    e.preventDefault();
+    if (!sucursalFiscal) {
+      setNumeroError("Seleccioná una sucursal para la vista previa.");
+      return;
+    }
+    setNumeroCargando(true);
+    setNumeroPreview(null);
+    setNumeroError("");
+    try {
+      const { data } = await api.get("/fiscal/numbering/preview", {
+        params: { sucursalId: Number(sucursalFiscal), tipoDocumento: tipoFiscal },
+      });
+      setNumeroPreview(data);
+    } catch (err) {
+      setNumeroError(err.response?.data?.mensaje || "No se pudo calcular el consecutivo de ejemplo.");
+    } finally {
+      setNumeroCargando(false);
     }
   };
 
@@ -121,6 +156,47 @@ function FiscalSettings() {
       </div>
       {error && <div className="alert alert-danger" role="alert">{error}</div>}
       {mensaje && <div className="alert alert-success" role="status">{mensaje}</div>}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+          <h5 className="fw-bold mb-2">Numeración fiscal por sucursal</h5>
+          <p className="text-secondary small">Vista previa de estructura: no reserva números ni genera claves o facturas.</p>
+          <form onSubmit={consultarNumero} className="row g-2 align-items-end">
+            <div className="col-md-5">
+              <label className="form-label fw-semibold" htmlFor="sucursalFiscal">Sucursal</label>
+              <select id="sucursalFiscal" className="form-select" value={sucursalFiscal}
+                onChange={e => { setSucursalFiscal(e.target.value); setNumeroPreview(null); }}>
+                <option value="">Seleccionar sucursal</option>
+                {sucursales.map(x => <option key={x.id} value={String(x.id)}>
+                  {x.nombre} {x.codigoSucursalFiscal ? "(" + x.codigoSucursalFiscal + ")" : "(sin código fiscal)"}
+                </option>)}
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label fw-semibold" htmlFor="tipoFiscal">Tipo de comprobante</label>
+              <select id="tipoFiscal" className="form-select" value={tipoFiscal}
+                onChange={e => { setTipoFiscal(e.target.value); setNumeroPreview(null); }}>
+                <option value="01">Factura electrónica (01)</option>
+                <option value="04">Tiquete electrónico (04)</option>
+              </select>
+            </div>
+            <div className="col-md-3 d-grid">
+              <button type="submit" className="btn btn-outline-dark" disabled={numeroCargando}>
+                {numeroCargando ? "Consultando..." : "Ver ejemplo"}
+              </button>
+            </div>
+          </form>
+          {numeroError && <div className="alert alert-danger mt-3 mb-0" role="alert">{numeroError}</div>}
+          {numeroPreview && <div className="border rounded p-3 mt-3">
+            <div className="text-secondary small mb-1">Consecutivo estimado · NO RESERVADO</div>
+            <div className="fs-5 fw-bold font-monospace text-break">{numeroPreview.ejemploConsecutivo}</div>
+            <div className="text-secondary small mt-2">
+              Último registrado: {numeroPreview.ultimoNumeroRegistrado} · Siguiente estimado: {numeroPreview.siguienteNumeroEstimado}
+            </div>
+            <p className="small text-secondary mb-0 mt-2">Solo para verificar la configuración. El consecutivo definitivo se asignará al emitir, cuando el módulo esté habilitado.</p>
+          </div>}
+        </div>
+      </div>
+
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-4">
           <h5 className="fw-bold">Esquemas oficiales de Hacienda 4.4</h5>
