@@ -40,6 +40,10 @@ function Productos() {
     descripcion: "",
     sku: "",
     codigoBarras: "",
+    codigoCabys: "",
+    unidadMedida: "Unid",
+    codigoImpuesto: "",
+    codigoTarifaIva: "",
     costo: "",
     precio: "",
     impuestoPorcentaje: "13",
@@ -149,6 +153,10 @@ function Productos() {
       descripcion: "",
       sku: "",
       codigoBarras: "",
+    codigoCabys: "",
+    unidadMedida: "Unid",
+    codigoImpuesto: "",
+    codigoTarifaIva: "",
       costo: "",
       precio: "",
       impuestoPorcentaje: "13",
@@ -177,6 +185,10 @@ function Productos() {
       sku: producto.sku || "",
       codigoBarras:
         producto.codigoBarras || "",
+      codigoCabys: producto.codigoCabys || "",
+      unidadMedida: producto.unidadMedida || "Unid",
+      codigoImpuesto: producto.codigoImpuesto || "",
+      codigoTarifaIva: producto.codigoTarifaIva || "",
       costo: String(producto.costo ?? ""),
       precio: String(producto.precio ?? ""),
       impuestoPorcentaje: String(
@@ -285,6 +297,10 @@ function Productos() {
           formulario.codigoBarras.trim() ||
           null,
 
+        codigoCabys: formulario.codigoCabys.trim() || null,
+        unidadMedida: formulario.unidadMedida.trim() || "Unid",
+        codigoImpuesto: formulario.codigoImpuesto.trim() || null,
+        codigoTarifaIva: formulario.codigoTarifaIva.trim() || null,
         costo: Number(
           formulario.costo
         ),
@@ -1591,6 +1607,28 @@ function Productos() {
                         />
                       </div>
 
+                      <div className="col-12 mt-4"><h6 className="fw-bold">Datos fiscales para Hacienda</h6><p className="text-secondary small mb-0">Opcionales durante esta fase. Antes de emitir deberán validarse con los catálogos oficiales.</p></div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold">Código CABYS (13 dígitos)</label>
+                        <input className="form-control" name="codigoCabys" value={formulario.codigoCabys}
+                          maxLength={13} inputMode="numeric" pattern="[0-9]{13}"
+                          onChange={cambiarCampo} placeholder="Código oficial CABYS" />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold">Unidad de medida</label>
+                        <input className="form-control" name="unidadMedida" maxLength={20}
+                          value={formulario.unidadMedida} onChange={cambiarCampo} />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold">Código de impuesto</label>
+                        <input className="form-control" name="codigoImpuesto" maxLength={2}
+                          value={formulario.codigoImpuesto} onChange={cambiarCampo} />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold">Código de tarifa IVA</label>
+                        <input className="form-control" name="codigoTarifaIva" maxLength={2}
+                          value={formulario.codigoTarifaIva} onChange={cambiarCampo} />
+                      </div>
                       <div className="col-md-4">
                         <label className="form-label fw-semibold">
                           Costo *
