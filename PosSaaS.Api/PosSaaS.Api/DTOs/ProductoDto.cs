@@ -12,6 +12,11 @@
 
         public string? CodigoBarras { get; set; }
 
+        public string? CodigoCabys { get; set; }
+        public string? UnidadMedida { get; set; }
+        public string? CodigoImpuesto { get; set; }
+        public string? CodigoTarifaIva { get; set; }
+
         public decimal Costo { get; set; }
 
         public decimal Precio { get; set; }
