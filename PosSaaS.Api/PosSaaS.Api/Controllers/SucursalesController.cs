@@ -143,7 +143,7 @@ namespace PosSaaS.Api.Controllers
             if (codigoSucursal != null)
             {
                 var usado = await _context.Sucursales.AnyAsync(x =>
-                    x.Id != id && x.TenantId == _tenantContext.TenantId &&
+                    x.TenantId == _tenantContext.TenantId &&
                     x.CodigoSucursalFiscal == codigoSucursal);
                 if (usado) return BadRequest("El código fiscal de sucursal ya está asignado a otra sucursal del comercio.");
             }
@@ -246,6 +246,20 @@ namespace PosSaaS.Api.Controllers
 
             var nombre =
                 dto.Nombre.Trim();
+
+            var codigoSucursal = NormalizarCodigo(dto.CodigoSucursalFiscal);
+            var codigoTerminal = NormalizarCodigo(dto.CodigoTerminalFiscal);
+            var validation = ValidarCodigoFiscal(codigoSucursal, codigoTerminal);
+            if (validation != null) return BadRequest(validation);
+
+            if (codigoSucursal != null)
+            {
+                var usado = await _context.Sucursales.AnyAsync(x =>
+                    x.Id != id && x.TenantId == _tenantContext.TenantId &&
+                    x.CodigoSucursalFiscal == codigoSucursal);
+                if (usado) return BadRequest("El código fiscal de sucursal ya está asignado a otra sucursal del comercio.");
+            }
+
 
             var existe =
                 await _context.Sucursales
