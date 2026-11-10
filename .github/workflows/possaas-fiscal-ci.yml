@@ -6,6 +6,7 @@ on:
     paths:
       - 'PosSaaS.Api/**'
       - 'PosSaaS.Web/**'
+      - 'tests/PosSaaS.FiscalSmoke/**'
       - 'scripts/install-hacienda-xsd.sh'
       - '.github/workflows/possaas-fiscal-ci.yml'
   workflow_dispatch:
@@ -22,6 +23,8 @@ jobs:
         run: dotnet restore PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj
       - name: Compile API
         run: dotnet build PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj --configuration Release --no-restore
+      - name: Fiscal smoke checks
+        run: dotnet run --project tests/PosSaaS.FiscalSmoke/PosSaaS.FiscalSmoke.csproj --configuration Release
       - name: Check XSD installation (without issuing invoices)
         shell: bash
         run: |
