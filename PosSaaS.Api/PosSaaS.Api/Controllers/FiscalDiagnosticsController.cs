@@ -60,7 +60,15 @@ public sealed class FiscalDiagnosticsController : ControllerBase
         var products = await _db.Productos.AsNoTracking()
             .Where(p => p.TenantId == tenantId && productIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id);
-        var warnings = FiscalSalePreflight.Check(venta, fiscal, products);
+        var warnings = FiscalSalePreflight.Check(venta, fiscal, products).ToList();
+        var branch = await _db.Sucursales.AsNoTracking()
+            .Where(x => x.Id == venta.SucursalId && x.TenantId == tenantId)
+            .Select(x => new { x.CodigoSucursalFiscal, x.CodigoTerminalFiscal })
+            .FirstOrDefaultAsync();
+        if (branch is null || string.IsNullOrWhiteSpace(branch.CodigoSucursalFiscal) ||
+            string.IsNullOrWhiteSpace(branch.CodigoTerminalFiscal))
+            warnings.Add("Faltan los códigos fiscales de sucursal y terminal.");
+
 
         return Ok(new
         {
