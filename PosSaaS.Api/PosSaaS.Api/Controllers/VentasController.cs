@@ -693,6 +693,8 @@ namespace PosSaaS.Api.Controllers
                         x.Descuento,
                         x.Impuesto,
                         x.Total,
+                        x.AjusteRedondeoEfectivo,
+                        totalCobrado = x.Total + x.AjusteRedondeoEfectivo,
 
                         sucursal =
                             x.Sucursal.Nombre,
