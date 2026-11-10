@@ -26,6 +26,8 @@ function Configuracion() {
     nombre: "",
     telefono: "",
     direccion: "",
+    codigoSucursalFiscal: "",
+    codigoTerminalFiscal: "",
   });
 
   const [metodoForm, setMetodoForm] = useState({
@@ -122,7 +124,7 @@ function Configuracion() {
 
   const abrirNuevaSucursal = () => {
     setEditandoId(null);
-    setSucursalForm({ nombre: "", telefono: "", direccion: "" });
+    setSucursalForm({ nombre: "", telefono: "", direccion: "", codigoSucursalFiscal: "", codigoTerminalFiscal: "" });
     setError("");
     setMensaje("");
     setModal("sucursal");
@@ -134,6 +136,8 @@ function Configuracion() {
       nombre: sucursal.nombre || "",
       telefono: sucursal.telefono || "",
       direccion: sucursal.direccion || "",
+      codigoSucursalFiscal: sucursal.codigoSucursalFiscal || "",
+      codigoTerminalFiscal: sucursal.codigoTerminalFiscal || "",
     });
     setError("");
     setMensaje("");
@@ -148,6 +152,14 @@ function Configuracion() {
       return;
     }
 
+    const branch = sucursalForm.codigoSucursalFiscal.trim();
+    const terminal = sucursalForm.codigoTerminalFiscal.trim();
+    if ((branch || terminal) &&
+        (!/^(?!000)[0-9]{3}$/.test(branch) || !/^(?!00000)[0-9]{5}$/.test(terminal))) {
+      setError("Completá sucursal fiscal (3 dígitos, desde 001) y terminal fiscal (5 dígitos, desde 00001).");
+      return;
+    }
+
     try {
       setProcesando(true);
       setError("");
@@ -155,6 +167,8 @@ function Configuracion() {
         nombre: sucursalForm.nombre.trim(),
         telefono: sucursalForm.telefono.trim() || null,
         direccion: sucursalForm.direccion.trim() || null,
+        codigoSucursalFiscal: branch || null,
+        codigoTerminalFiscal: terminal || null,
       };
 
       if (editandoId) {
@@ -464,6 +478,11 @@ function Configuracion() {
                           <td>
                             <div className="fw-semibold">{sucursal.nombre}</div>
                             <small className="text-secondary">ID #{sucursal.id}</small>
+                            <div className="small text-secondary">
+                              Fiscal: {sucursal.codigoSucursalFiscal && sucursal.codigoTerminalFiscal
+                                ? `${sucursal.codigoSucursalFiscal} / ${sucursal.codigoTerminalFiscal}`
+                                : "Sin configurar"}
+                            </div>
                           </td>
                           <td>
                             {sucursal.telefono ? (
@@ -662,6 +681,24 @@ function Configuracion() {
                       onChange={(e) => setSucursalForm({ ...sucursalForm, telefono: e.target.value })}
                       placeholder="8888-8888"
                     />
+                  </div>
+                  <div className="rounded border p-3 mb-3">
+                    <div className="fw-semibold mb-1">Numeración fiscal de Hacienda</div>
+                    <p className="small text-secondary">Solo configuración; todavía no emite facturas. Casa matriz: 001. Primera terminal: 00001. Estos códigos son diferentes del ID de la sucursal.</p>
+                    <div className="row g-3">
+                      <div className="col-sm-6">
+                        <label className="form-label">Sucursal fiscal (3 dígitos)</label>
+                        <input className="form-control" inputMode="numeric" maxLength={3}
+                          placeholder="001" value={sucursalForm.codigoSucursalFiscal}
+                          onChange={e => setSucursalForm(v => ({ ...v, codigoSucursalFiscal: e.target.value }))} />
+                      </div>
+                      <div className="col-sm-6">
+                        <label className="form-label">Terminal fiscal (5 dígitos)</label>
+                        <input className="form-control" inputMode="numeric" maxLength={5}
+                          placeholder="00001" value={sucursalForm.codigoTerminalFiscal}
+                          onChange={e => setSucursalForm(v => ({ ...v, codigoTerminalFiscal: e.target.value }))} />
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="form-label fw-semibold">Dirección</label>
