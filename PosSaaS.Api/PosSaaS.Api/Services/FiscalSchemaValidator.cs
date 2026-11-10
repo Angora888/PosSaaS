@@ -47,13 +47,16 @@ public sealed class FiscalSchemaValidator
             ValidationType = ValidationType.Schema,
             ValidationFlags = XmlSchemaValidationFlags.ReportValidationWarnings
         };
+        // Disable external schema resolution BEFORE loading the schema.
+        // If the official XSD needs external dependencies, installation must
+        // include and review them rather than downloading them on user requests.
+        settings.Schemas.XmlResolver = null;
         using (var schemaReader = XmlReader.Create(schemaPath, new XmlReaderSettings
         {
             DtdProcessing = DtdProcessing.Prohibit,
             XmlResolver = null
         }))
             settings.Schemas.Add(null, schemaReader);
-        settings.Schemas.XmlResolver = null;
         settings.Schemas.Compile();
         var schemaNamespaces = settings.Schemas.Schemas()
             .Cast<XmlSchema>().Select(x => x.TargetNamespace)
