@@ -15,6 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
+// Hacienda v4.4 offline validation; fails closed if official XSD files are absent.
+builder.Services.AddSingleton<FiscalSchemaValidator>();
+
 
 // =====================================================
 // DATABASE
