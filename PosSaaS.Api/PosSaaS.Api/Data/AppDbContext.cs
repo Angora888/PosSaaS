@@ -70,8 +70,7 @@ namespace PosSaaS.Api.Data
                 entity.Property(x => x.Estado).IsRequired().HasMaxLength(30);
                 entity.HasIndex(x => x.Clave).IsUnique();
                 entity.HasIndex(x => new { x.TenantId, x.Consecutivo }).IsUnique();
-                entity.HasIndex(x => new { x.TenantId, x.VentaId, x.TipoDocumento })
-                    .IsUnique().HasFilter("\\"VentaId\\" IS NOT NULL AND \\"TipoDocumento\\" IN ('01','04')");
+                entity.HasIndex(x => new { x.TenantId, x.VentaId, x.TipoDocumento });
                 entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne<Sucursal>().WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne<Venta>().WithMany().HasForeignKey(x => x.VentaId).OnDelete(DeleteBehavior.Restrict);
