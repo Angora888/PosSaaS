@@ -16,6 +16,21 @@ public static class FiscalNumbering
         return $"{sucursal:D3}{terminal:D5}{tipo}{numero:D10}";
     }
 
+    // Build a consecutive from already-configured fiscal codes without relying on
+    // database IDs. Never reserves the number. This is safe for diagnostics only.
+    public static string ConsecutivoDesdeCodigos(
+        string codigoSucursal, string codigoTerminal, string tipo, long numero)
+    {
+        if (codigoSucursal is null || codigoSucursal.Length != 3 ||
+            !codigoSucursal.All(IsAsciiDigit) || codigoSucursal == "000")
+            throw new ArgumentException("Código fiscal de sucursal inválido.", nameof(codigoSucursal));
+        if (codigoTerminal is null || codigoTerminal.Length != 5 ||
+            !codigoTerminal.All(IsAsciiDigit) || codigoTerminal == "00000")
+            throw new ArgumentException("Código fiscal de terminal inválido.", nameof(codigoTerminal));
+        return Consecutivo(int.Parse(codigoSucursal, CultureInfo.InvariantCulture),
+            int.Parse(codigoTerminal, CultureInfo.InvariantCulture), tipo, numero);
+    }
+
     // 506 + ddMMyy + 12-digit issuer + 20-digit consecutive + situation + 8-digit security.
     // Caller must persist uniqueness atomically before producing a fiscal document.
     private static bool IsAsciiDigit(char c) => c is >= '0' and <= '9';
