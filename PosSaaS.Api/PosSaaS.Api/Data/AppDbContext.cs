@@ -83,6 +83,7 @@ namespace PosSaaS.Api.Data
 
                 entity.Property(x => x.Identificacion)
                     .HasMaxLength(50);
+                entity.Property(x => x.TipoIdentificacion).HasMaxLength(2);
 
                 entity.Property(x => x.Email)
                     .HasMaxLength(150);
@@ -230,6 +231,10 @@ namespace PosSaaS.Api.Data
 
                 entity.Property(x => x.ImpuestoPorcentaje)
                     .HasPrecision(5, 2);
+                entity.Property(x => x.CodigoCabys).HasMaxLength(13);
+                entity.Property(x => x.UnidadMedida).HasMaxLength(20).IsRequired();
+                entity.Property(x => x.CodigoImpuesto).HasMaxLength(2);
+                entity.Property(x => x.CodigoTarifaIva).HasMaxLength(2);
 
                 entity.HasOne(x => x.Tenant)
                     .WithMany(x => x.Productos)
