@@ -37,6 +37,9 @@ jobs:
         with:
           dotnet-version: "10.x"
 
+      - name: Install SHA-256 verified Hacienda XSD 4.4
+        run: bash scripts/install-hacienda-xsd.sh
+
       - name: Restore dependencies
         run: dotnet restore "${{ env.PROJECT_PATH }}"
 
