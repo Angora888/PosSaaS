@@ -23,6 +23,8 @@ jobs:
         run: dotnet restore PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj
       - name: Compile API
         run: dotnet build PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj --configuration Release --no-restore
+      - name: Install SHA-256 verified Hacienda XSD 4.4
+        run: bash scripts/install-hacienda-xsd.sh
       - name: Fiscal smoke checks
         run: dotnet run --project tests/PosSaaS.FiscalSmoke/PosSaaS.FiscalSmoke.csproj --configuration Release
   official-xsd-availability:
