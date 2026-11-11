@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using System.Xml.Schema;
 using PosSaaS.Api.Models;
 using PosSaaS.Api.Services;
+using PosSaaS.FiscalSmoke;
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -170,6 +171,46 @@ if (File.Exists(xsdFile))
     Check(FiscalXml44PreviewService.SoloFaltaFirma(schemaIssues),
         "Unsigned v4.4 structure must have ONLY missing Signature XSD error: " +
         string.Join(" | ", schemaIssues.Take(10)));
+    // DEVELOPMENT ONLY: XMLDSIG demonstrates signing and tamper detection.
+    // This is NOT XAdES-EPES, nor a real merchant certificate.
+    var (signedXml, publicCertificate) =
+        XmlSignatureDevelopmentFixture.SignEphemeral(previewXml);
+    using (publicCertificate)
+    {
+        Check(XmlSignatureDevelopmentFixture.VerifyWithPinnedCertificate(signedXml, publicCertificate),
+            "Ephemeral XMLDSIG signature verifies using independently pinned public certificate");
+
+        var tamperedXml = signedXml.Replace("Café", "Cafe", StringComparison.Ordinal);
+        Check(tamperedXml != signedXml &&
+              !XmlSignatureDevelopmentFixture.VerifyWithPinnedCertificate(tamperedXml, publicCertificate),
+            "Tampering with the signed product description breaks XMLDSIG verification");
+
+        // Signature stripping must also fail when not present.
+        var strippedDoc = new XmlDocument { PreserveWhitespace = true, XmlResolver = null };
+        strippedDoc.LoadXml(signedXml);
+        var signatureNodes = strippedDoc.GetElementsByTagName(
+            "Signature", "http://www.w3.org/2000/09/xmldsig#");
+        signatureNodes[0]!.ParentNode!.RemoveChild(signatureNodes[0]!);
+        Check(!XmlSignatureDevelopmentFixture.VerifyWithPinnedCertificate(
+                strippedDoc.OuterXml, publicCertificate),
+            "Missing XML signature is rejected");
+
+        var signedXsdIssues = new List<string>();
+        var signedXmlSettings = new XmlReaderSettings {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            ValidationType = ValidationType.Schema,
+            ValidationFlags = XmlSchemaValidationFlags.ReportValidationWarnings
+        };
+        signedXmlSettings.Schemas.Add(schemas);
+        signedXmlSettings.ValidationEventHandler += (_, e) => signedXsdIssues.Add(e.Message);
+        using (var signedReader = XmlReader.Create(new StringReader(signedXml), signedXmlSettings))
+            while (signedReader.Read()) { }
+        Check(signedXsdIssues.Count == 0,
+            "Signed test XML passes Hacienda 4.4 XSD shape: " +
+            string.Join(" | ", signedXsdIssues.Take(10)));
+    }
+
 
 }
 else
