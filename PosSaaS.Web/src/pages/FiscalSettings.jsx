@@ -41,6 +41,9 @@ function FiscalSettings() {
   const [numeroPreview, setNumeroPreview] = useState(null);
   const [numeroError, setNumeroError] = useState("");
   const [numeroCargando, setNumeroCargando] = useState(false);
+  const [preparacion, setPreparacion] = useState(null);
+  const [cargandoPreparacion, setCargandoPreparacion] = useState(false);
+  const [errorPreparacion, setErrorPreparacion] = useState("");
   const [cantonesCR, setCantonesCR] = useState([]);
   const [distritosCR, setDistritosCR] = useState([]);
   const [cargandoCantones, setCargandoCantones] = useState(false);
@@ -208,6 +211,20 @@ function FiscalSettings() {
     }
   };
 
+  const revisarPreparacion = async () => {
+    setCargandoPreparacion(true);
+    setErrorPreparacion("");
+    try {
+      const response = await api.get("/fiscal/readiness");
+      setPreparacion(response.data);
+    } catch (err) {
+      setErrorPreparacion(err.response?.data?.mensaje ||
+        "No se pudo revisar el estado fiscal. Verificá que la API esté actualizada.");
+    } finally {
+      setCargandoPreparacion(false);
+    }
+  };
+
   const consultarNumero = async (e) => {
     e.preventDefault();
     if (!sucursalFiscal) {
@@ -294,6 +311,48 @@ function FiscalSettings() {
       </div>
       {error && <div className="alert alert-danger" role="alert">{error}</div>}
       {mensaje && <div className="alert alert-success" role="status">{mensaje}</div>}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+          <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+            <div>
+              <h5 className="fw-bold mb-1">Estado de preparación para facturar</h5>
+              <p className="text-secondary small mb-0">Comprobación real de datos fiscales de este comercio y de los componentes pendientes en la API.</p>
+            </div>
+            <button type="button" className="btn btn-outline-dark btn-sm"
+              disabled={cargandoPreparacion} onClick={revisarPreparacion}>
+              {cargandoPreparacion ? "Revisando..." : preparacion ? "Actualizar revisión" : "Revisar preparación"}
+            </button>
+          </div>
+          {errorPreparacion && <div className="alert alert-warning" role="alert">{errorPreparacion}</div>}
+          {preparacion && <>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <strong>{preparacion.pasosCompletos} de {preparacion.totalPasos} comprobaciones completadas</strong>
+              <span className="badge text-bg-warning">Emisión deshabilitada</span>
+            </div>
+            <div className="progress mb-3" role="progressbar" aria-label="Preparación fiscal"
+              aria-valuenow={preparacion.pasosCompletos} aria-valuemin={0}
+              aria-valuemax={preparacion.totalPasos} style={{ height: 8 }}>
+              <div className="progress-bar bg-dark"
+                style={{ width: `${preparacion.totalPasos ? preparacion.pasosCompletos * 100 / preparacion.totalPasos : 0}%` }} />
+            </div>
+            <div className="list-group list-group-flush">
+              {(preparacion.pasos || []).map(paso => <div key={paso.codigo}
+                className="list-group-item px-0 d-flex align-items-start gap-3">
+                <i className={`bi ${paso.completo ? "bi-check-circle-fill text-success" : "bi-circle text-secondary"} fs-5`}
+                  aria-hidden="true" />
+                <div>
+                  <div className="fw-semibold">{paso.nombre}</div>
+                  <div className="small text-secondary">{paso.detalle}</div>
+                </div>
+              </div>)}
+            </div>
+            <p className="small text-secondary mt-3 mb-0">
+              Este reporte es orientativo. No comprueba que Hacienda acepte facturas, ni sustituye las pruebas con XML firmados.
+            </p>
+          </>}
+        </div>
+      </div>
+
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-4">
           <h5 className="fw-bold mb-2">Numeración fiscal por sucursal</h5>
