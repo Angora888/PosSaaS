@@ -385,6 +385,46 @@ function FiscalSettings() {
 
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-4">
+          <h5 className="fw-bold mb-2"><i className="bi bi-shield-check me-2" />Firma electrónica del emisor</h5>
+          <p className="text-secondary small">
+            Próxima fase: firma XAdES-EPES del XML 4.4. Cada comercio deberá utilizar
+            una llave criptográfica de Hacienda o un certificado autorizado de su contribuyente.
+          </p>
+          <div className="row g-3">
+            <div className="col-md-6">
+              <div className="border rounded-3 p-3 h-100">
+                <div className="fw-semibold mb-1">Opción 1 · Llave criptográfica de Hacienda</div>
+                <div className="small text-secondary">
+                  El contribuyente la obtiene para el ambiente de pruebas o producción.
+                  Se utilizará con RSA 2048 y SHA-256.
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <div className="border rounded-3 p-3 h-100">
+                <div className="fw-semibold mb-1">Opción 2 · Certificado de firma digital</div>
+                <div className="small text-secondary">
+                  Certificado permitido por Hacienda, asociado al contribuyente
+                  y válido para la firma fiscal.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="alert alert-warning mt-3 mb-0 small" role="status">
+            <i className="bi bi-lock-fill me-2" />
+            La carga de llaves y contraseñas está deshabilitada por seguridad.
+            Primero implementaremos almacenamiento cifrado y aislado por comercio,
+            firma verificable, rotación y auditoría. No subás certificados privados aquí.
+          </div>
+          <a href="https://atv.hacienda.go.cr/ATV/ComprobanteElectronico/frmAnexosyEstructuras.aspx"
+             target="_blank" rel="noreferrer" className="d-inline-block small mt-3">
+            Ver anexos oficiales de firma y estructuras 4.4
+          </a>
+        </div>
+      </div>
+
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
           <h5 className="fw-bold mb-2">Numeración fiscal por sucursal</h5>
           <p className="text-secondary small">Vista previa de estructura: no reserva números ni genera claves o facturas.</p>
           <form onSubmit={consultarNumero} className="row g-2 align-items-end">
