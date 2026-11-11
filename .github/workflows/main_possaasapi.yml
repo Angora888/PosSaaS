@@ -7,6 +7,8 @@ on:
     paths:
       - "PosSaaS.Api/**"
       - ".github/workflows/main_possaasapi.yml"
+      - "scripts/install-hacienda-xsd.sh"
+      - "scripts/install-xmldsig-schema.sh"
 
   workflow_dispatch:
 
