@@ -96,7 +96,33 @@ public sealed class HaciendaConsultaController : ControllerBase
                 if (type is "01" or "02" or "03" or "04") tipo = type;
             }
 
-            var result = new ContribuyenteResult(clean, nombre, tipo);
+            // Preserve Hacienda's economic activity code exactly as returned.
+            // It is a public lookup aid, not an authorization to issue invoices.
+            var activities = new List<ActividadHacienda>();
+            if (root.TryGetProperty("actividades", out var activitiesJson) &&
+                activitiesJson.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var activity in activitiesJson.EnumerateArray())
+                {
+                    if (activities.Count >= 100) break;
+                    if (activity.ValueKind != JsonValueKind.Object) continue;
+                    var code = activity.TryGetProperty("codigo", out var codeJson) &&
+                        codeJson.ValueKind == JsonValueKind.String ? codeJson.GetString()?.Trim() : null;
+                    var description = activity.TryGetProperty("descripcion", out var descriptionJson) &&
+                        descriptionJson.ValueKind == JsonValueKind.String ? descriptionJson.GetString()?.Trim() : null;
+                    var status = activity.TryGetProperty("estado", out var statusJson) &&
+                        statusJson.ValueKind == JsonValueKind.String ? statusJson.GetString()?.Trim() : null;
+                    var kind = activity.TryGetProperty("tipo", out var kindJson) &&
+                        kindJson.ValueKind == JsonValueKind.String ? kindJson.GetString()?.Trim() : null;
+                    if (string.IsNullOrWhiteSpace(code) || code.Length > 20 ||
+                        !System.Text.RegularExpressions.Regex.IsMatch(code, @"^[0-9.]+$"))
+                        continue;
+                    activities.Add(new ActividadHacienda(code,
+                        description is { Length: > 250 } ? description[..250] : description ?? "",
+                        status ?? "", kind ?? ""));
+                }
+            }
+            var result = new ContribuyenteResult(clean, nombre, tipo, activities.ToArray());
             _cache.Set(key, result, TimeSpan.FromHours(12));
             return Ok(result);
         }
@@ -118,5 +144,7 @@ public sealed class HaciendaConsultaController : ControllerBase
         }
     }
 
-    private sealed record ContribuyenteResult(string Identificacion, string Nombre, string? TipoIdentificacion);
+    private sealed record ActividadHacienda(string Codigo, string Descripcion, string Estado, string Tipo);
+    private sealed record ContribuyenteResult(string Identificacion, string Nombre,
+        string? TipoIdentificacion, ActividadHacienda[] Actividades);
 }
