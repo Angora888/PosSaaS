@@ -165,8 +165,11 @@ if (File.Exists(xsdFile))
     xmlSettings.ValidationEventHandler += (_, e) => schemaIssues.Add(e.Message);
     using (var xmlReader = XmlReader.Create(new StringReader(previewXml), xmlSettings))
         while (xmlReader.Read()) { }
-    Check(schemaIssues.Count == 0,
-        "Experimental 4.4 FE XML passes the official XSD: " + string.Join(" | ", schemaIssues.Take(10)));
+    // Pre-signature XML is correctly *not* XSD-valid because the mandated
+    // digital Signature is absent. No other structural XSD error is permitted.
+    Check(FiscalXml44PreviewService.SoloFaltaFirma(schemaIssues),
+        "Unsigned v4.4 structure must have ONLY missing Signature XSD error: " +
+        string.Join(" | ", schemaIssues.Take(10)));
 
 }
 else
