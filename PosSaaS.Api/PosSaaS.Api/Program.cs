@@ -29,6 +29,8 @@ builder.Services.AddHttpClient("HaciendaPublica", client =>
 
 // Hacienda v4.4 offline validation; fails closed if official XSD files are absent.
 builder.Services.AddSingleton<FiscalSchemaValidator>();
+// Future XAdES signing policy: offline, approved-document checks only.
+builder.Services.AddSingleton<FiscalSigningPolicyInspector>();
 
 
 // =====================================================
