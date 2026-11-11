@@ -8,6 +8,7 @@ on:
       - 'PosSaaS.Web/**'
       - 'tests/PosSaaS.FiscalSmoke/**'
       - 'scripts/install-hacienda-xsd.sh'
+      - 'scripts/install-xmldsig-schema.sh'
       - '.github/workflows/possaas-fiscal-ci.yml'
   workflow_dispatch:
 
