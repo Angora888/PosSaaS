@@ -292,4 +292,6 @@ sale.Detalles.Clear();
 MustThrow<InvalidOperationException>(() => FiscalXmlDraftService.Generate(sale, null, null, products),
     "Empty sale rejected");
 
+PolicyInspectorDevelopmentTests.Run(Check);
+
 Console.WriteLine($"PASS: {checks} fiscal smoke checks (no real invoice issued).");
