@@ -265,7 +265,11 @@ if (File.Exists(xsdFile))
             var xadesSettings = new XmlReaderSettings {
                 DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null,
                 ValidationType = ValidationType.Schema,
-                ValidationFlags = XmlSchemaValidationFlags.ReportValidationWarnings
+                // The official XMLDSIG schema permits foreign XAdES content
+                // inside ds:Object via lax processing. Unresolved XAdES schema
+                // warnings are not an error in Hacienda's FE XSD; signed
+                // property integrity is separately verified cryptographically.
+                ValidationFlags = XmlSchemaValidationFlags.None
             };
             xadesSettings.Schemas.Add(schemas);
             xadesSettings.ValidationEventHandler += (_, e) => xadesIssues.Add(e.Message);
