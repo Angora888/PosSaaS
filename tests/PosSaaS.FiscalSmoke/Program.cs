@@ -142,6 +142,13 @@ var xsdFile = Path.Combine("PosSaaS.Api", "PosSaaS.Api", "FiscalSchemas", "v4.4"
 if (File.Exists(xsdFile))
 {
     var schemas = new XmlSchemaSet { XmlResolver = null };
+    var signatureXsd = Path.Combine("PosSaaS.Api", "PosSaaS.Api", "FiscalSchemas",
+        "v4.4", "xmldsig-core-schema.xsd");
+    Check(File.Exists(signatureXsd), "W3C XMLDSIG signature schema installed with Hacienda XSD");
+    using (var signReader = XmlReader.Create(signatureXsd, new XmlReaderSettings {
+        DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null
+    }))
+        schemas.Add("http://www.w3.org/2000/09/xmldsig#", signReader);
     using (var schemaReader = XmlReader.Create(xsdFile, new XmlReaderSettings {
         DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null
     }))
