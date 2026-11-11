@@ -12,7 +12,7 @@ const provinciasCR = [
 const catalogoUbicacion = "https://ubicaciones.paginasweb.cr";
 const normalizarOpciones = (json) =>
   Object.entries(json || {})
-    .filter(([key, name]) => /^\\d+$/.test(key) && typeof name === "string")
+    .filter(([key, name]) => /^\d+$/.test(key) && typeof name === "string")
     .map(([key, name]) => ({ codigo: key.padStart(2, "0"), nombre: name }))
     .sort((a, b) => Number(a.codigo) - Number(b.codigo));
 
@@ -59,7 +59,15 @@ function FiscalSettings() {
   useEffect(() => {
     let activo = true;
     api.get("/fiscal/config")
-      .then(({ data }) => { if (activo && data) setDatos({ ...inicial, ...data }); })
+      .then(({ data }) => {
+        if (activo && data) setDatos({
+          ...inicial,
+          ...data,
+          provincia: data.provincia ? String(Number(data.provincia)) : "",
+          canton: data.canton ? String(data.canton).padStart(2, "0") : "",
+          distrito: data.distrito ? String(data.distrito).padStart(2, "0") : "",
+        });
+      })
       .catch((err) => { if (activo) setError(err.response?.data?.mensaje || "No se pudo cargar la configuración fiscal."); })
       .finally(() => { if (activo) setCargando(false); });
     return () => { activo = false; };
