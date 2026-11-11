@@ -2,6 +2,20 @@ import { useEffect, useState } from "react";
 import AppLayout from "../layouts/AppLayout";
 import api from "../services/api";
 
+// Hacienda v4.4 expects province (1 digit), canton (2) and district (2).
+// Display names are obtained from a third-party public territorial catalog;
+// the codes stored in the fiscal configuration remain the standard values.
+const provinciasCR = [
+  ["1", "San José"], ["2", "Alajuela"], ["3", "Cartago"],
+  ["4", "Heredia"], ["5", "Guanacaste"], ["6", "Puntarenas"], ["7", "Limón"],
+];
+const catalogoUbicacion = "https://ubicaciones.paginasweb.cr";
+const normalizarOpciones = (json) =>
+  Object.entries(json || {})
+    .filter(([key, name]) => /^\\d+$/.test(key) && typeof name === "string")
+    .map(([key, name]) => ({ codigo: key.padStart(2, "0"), nombre: name }))
+    .sort((a, b) => Number(a.codigo) - Number(b.codigo));
+
 const inicial = {
   razonSocial: "", tipoIdentificacion: "02", identificacion: "",
   actividadEconomica: "", correo: "", telefono: "", provincia: "",
@@ -27,6 +41,12 @@ function FiscalSettings() {
   const [numeroPreview, setNumeroPreview] = useState(null);
   const [numeroError, setNumeroError] = useState("");
   const [numeroCargando, setNumeroCargando] = useState(false);
+  const [cantonesCR, setCantonesCR] = useState([]);
+  const [distritosCR, setDistritosCR] = useState([]);
+  const [cargandoCantones, setCargandoCantones] = useState(false);
+  const [cargandoDistritos, setCargandoDistritos] = useState(false);
+  const [errorUbicacion, setErrorUbicacion] = useState("");
+  const [ubicacionManual, setUbicacionManual] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -44,6 +64,64 @@ function FiscalSettings() {
       .finally(() => { if (activo) setCargando(false); });
     return () => { activo = false; };
   }, []);
+
+  useEffect(() => {
+    if (!datos.provincia || ubicacionManual) {
+      setCantonesCR([]);
+      return;
+    }
+    const controller = new AbortController();
+    setCargandoCantones(true);
+    setErrorUbicacion("");
+    fetch(`${catalogoUbicacion}/provincia/${encodeURIComponent(datos.provincia)}/cantones.json`, {
+      signal: controller.signal,
+    }).then(r => {
+      if (!r.ok) throw new Error("No disponible");
+      return r.json();
+    }).then(json => setCantonesCR(normalizarOpciones(json)))
+      .catch(err => {
+        if (err.name !== "AbortError") {
+          setErrorUbicacion("El catálogo de cantones no respondió. Podés ingresar los códigos manualmente.");
+          setCantonesCR([]);
+        }
+      }).finally(() => {
+        if (!controller.signal.aborted) setCargandoCantones(false);
+      });
+    return () => controller.abort();
+  }, [datos.provincia, ubicacionManual]);
+
+  useEffect(() => {
+    if (!datos.provincia || !datos.canton || ubicacionManual) {
+      setDistritosCR([]);
+      return;
+    }
+    const controller = new AbortController();
+    setCargandoDistritos(true);
+    fetch(`${catalogoUbicacion}/provincia/${encodeURIComponent(datos.provincia)}/canton/${Number(datos.canton)}/distritos.json`, {
+      signal: controller.signal,
+    }).then(r => {
+      if (!r.ok) throw new Error("No disponible");
+      return r.json();
+    }).then(json => setDistritosCR(normalizarOpciones(json)))
+      .catch(err => {
+        if (err.name !== "AbortError") {
+          setErrorUbicacion("No se pudo cargar el distrito. Podés ingresar los códigos manualmente.");
+          setDistritosCR([]);
+        }
+      }).finally(() => {
+        if (!controller.signal.aborted) setCargandoDistritos(false);
+      });
+    return () => controller.abort();
+  }, [datos.provincia, datos.canton, ubicacionManual]);
+
+  const cambiarProvincia = (provincia) => {
+    setErrorUbicacion("");
+    setDatos(actual => ({ ...actual, provincia, canton: "", distrito: "" }));
+  };
+  const cambiarCanton = (canton) => {
+    setErrorUbicacion("");
+    setDatos(actual => ({ ...actual, canton, distrito: "" }));
+  };
 
   const campo = (clave, titulo, tipo = "text", obligatorio = false, ayuda = "") => (
     <div className="col-md-6" key={clave}>
@@ -128,6 +206,12 @@ function FiscalSettings() {
   const guardar = async (e) => {
     e.preventDefault();
     if (guardando) return;
+    if (!/^[1-7]$/.test(datos.provincia) ||
+        !/^[0-9]{2}$/.test(datos.canton) ||
+        !/^[0-9]{2}$/.test(datos.distrito)) {
+      setError("Seleccioná una provincia, cantón y distrito válidos. Sus códigos deben tener 1, 2 y 2 dígitos.");
+      return;
+    }
     setGuardando(true);
     setError("");
     setMensaje("");
@@ -259,9 +343,59 @@ function FiscalSettings() {
               {campo("actividadEconomica", "Código de actividad económica", "text", false, "Según el registro tributario del contribuyente.")}
               {campo("correo", "Correo para comprobantes", "email", true)}
               {campo("telefono", "Teléfono")}
-              {campo("provincia", "Provincia (código)")}
-              {campo("canton", "Cantón (código)")}
-              {campo("distrito", "Distrito (código)")}
+              <div className="col-12">
+                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                  <label className="form-label fw-semibold mb-0">Ubicación del emisor (Costa Rica)</label>
+                  <button type="button" className="btn btn-sm btn-link"
+                    onClick={() => { setUbicacionManual(v => !v); setErrorUbicacion(""); }}>
+                    {ubicacionManual ? "Elegir de la lista" : "Ingresar códigos manualmente"}
+                  </button>
+                </div>
+                <div className="small text-secondary mt-1">
+                  Elegí provincia, cantón y distrito. Se guardan sus códigos fiscales, no el nombre.
+                </div>
+              </div>
+              {ubicacionManual ? <>
+                {campo("provincia", "Provincia (1 dígito)", "text", true)}
+                {campo("canton", "Cantón (2 dígitos)", "text", true)}
+                {campo("distrito", "Distrito (2 dígitos)", "text", true)}
+              </> : <>
+                <div className="col-md-4">
+                  <label htmlFor="provincia" className="form-label fw-semibold">Provincia</label>
+                  <select id="provincia" className="form-select" required
+                    value={datos.provincia} onChange={e => cambiarProvincia(e.target.value)}
+                    disabled={guardando}>
+                    <option value="">Seleccionar provincia</option>
+                    {provinciasCR.map(([codigo, nombre]) =>
+                      <option key={codigo} value={codigo}>{nombre}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-4">
+                  <label htmlFor="canton" className="form-label fw-semibold">Cantón</label>
+                  <select id="canton" className="form-select" required
+                    value={datos.canton} onChange={e => cambiarCanton(e.target.value)}
+                    disabled={guardando || !datos.provincia || cargandoCantones}>
+                    <option value="">{cargandoCantones ? "Cargando cantones..." : "Seleccionar cantón"}</option>
+                    {datos.canton && !cantonesCR.some(x => x.codigo === datos.canton) &&
+                      <option value={datos.canton}>Código guardado: {datos.canton}</option>}
+                    {cantonesCR.map(x => <option key={x.codigo} value={x.codigo}>{x.nombre}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-4">
+                  <label htmlFor="distrito" className="form-label fw-semibold">Distrito</label>
+                  <select id="distrito" className="form-select" required
+                    value={datos.distrito} onChange={e => setDatos(v => ({ ...v, distrito: e.target.value }))}
+                    disabled={guardando || !datos.canton || cargandoDistritos}>
+                    <option value="">{cargandoDistritos ? "Cargando distritos..." : "Seleccionar distrito"}</option>
+                    {datos.distrito && !distritosCR.some(x => x.codigo === datos.distrito) &&
+                      <option value={datos.distrito}>Código guardado: {datos.distrito}</option>}
+                    {distritosCR.map(x => <option key={x.codigo} value={x.codigo}>{x.nombre}</option>)}
+                  </select>
+                </div>
+              </>}
+              {errorUbicacion && <div className="col-12">
+                <div className="alert alert-warning py-2 mb-0" role="alert">{errorUbicacion}</div>
+              </div>}
               {campo("otrasSenas", "Otras señas")}
             </div>
             <hr className="my-4" />
