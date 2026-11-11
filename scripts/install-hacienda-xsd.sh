@@ -24,7 +24,22 @@ if "v4.4" not in root.attrib.get("targetNamespace", ""):
     raise SystemExit("Namespace inesperado; verificar versión antes de instalar: "+name)
 print("Verificado XML Schema:",name,root.attrib.get("targetNamespace"))
 PY
+  # Approved SHA-256 fingerprints of official XSD files retrieved on 2026-11-10.
+  # Do not silently accept a changed schema; review any Hacienda update first.
+  case "${name}" in
+    FacturaElectronica_V4.4.xsd)
+      expected="d384afef665573606f6499b2182d6070850ada8c93bc40fa7f0f3901a25b9cc8" ;;
+    TiqueteElectronico_V4.4.xsd)
+      expected="cda1c7dd97f9a235111c29948f05d7893864663cd73792fd3b51e3dae582cfdb" ;;
+    *) exit 1 ;;
+  esac
+  actual="$(sha256sum "${tmp}" | cut -d' ' -f1)"
+  if [[ "${actual}" != "${expected}" ]]; then
+    echo "ERROR: el SHA-256 de Hacienda cambió para ${name}. Revisar antes de instalar." >&2
+    rm -f "${tmp}"
+    exit 1
+  fi
   mv "${tmp}" "${DEST}/${name}"
-  sha256sum "${DEST}/${name}"
+  echo "${actual}  ${DEST}/${name}"
 done
 echo "XSD disponibles localmente. Pendiente validar ejemplos fiscales y firma."
