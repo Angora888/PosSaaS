@@ -37,7 +37,15 @@ jobs:
         with:
           dotnet-version: "10.x"
 
+      - name: Restore verified Hacienda XSD cache
+        id: schema-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: PosSaaS.Api/PosSaaS.Api/FiscalSchemas/v4.4/*.xsd
+          key: possaas-fiscal-v44-d384afef-cda1c7dd-w3c-v1
+
       - name: Try installing SHA-256 verified Hacienda XSD 4.4
+        if: steps.schema-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           if bash scripts/install-hacienda-xsd.sh && bash scripts/install-xmldsig-schema.sh; then
