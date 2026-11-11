@@ -82,19 +82,23 @@ public sealed class FiscalDiagnosticsController : ControllerBase
             var xml = FiscalXml44PreviewService.Generate(sale, issuer, sale.Cliente,
                 products, providerId, consecutive, key, when);
             var validation = _validator.Validate("01", xml);
-            if (!validation.Valido)
+            if (!FiscalXml44PreviewService.SoloFaltaFirma(validation.Errores))
                 return UnprocessableEntity(new {
-                    mensaje = "El XML experimental no pasó el esquema oficial 4.4.",
+                    mensaje = "El XML experimental tiene problemas XSD distintos de la firma y NO se mostrará como pre-firma.",
                     erroresXsd = validation.Errores,
+                    validoContraXsd = false,
                     validoParaEmision = false
                 });
+
             return Ok(new {
                 xml,
-                validoContraXsd = true,
+                estructuraPreFirmaVerificada = true,
+                validoContraXsd = false, // ds:Signature is mandatory and missing.
+                erroresXsd = validation.Errores,
                 firmado = false,
                 reservado = false,
                 validoParaEmision = false,
-                advertencia = "Vista previa experimental. La clave y el consecutivo son simulados; PROHIBIDO transmitir."
+                advertencia = "SOLO ESTRUCTURA PRE-FIRMA. El XSD requiere ds:Signature. Clave y consecutivo simulados. NO transmitir ni usar como factura."
             });
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException
