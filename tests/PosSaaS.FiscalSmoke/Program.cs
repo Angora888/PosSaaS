@@ -179,6 +179,33 @@ if (File.Exists(xsdFile))
     {
         Check(XmlSignatureDevelopmentFixture.VerifyWithPinnedCertificate(signedXml, publicCertificate),
             "Ephemeral XMLDSIG signature verifies using independently pinned public certificate");
+        // Exercise XAdES-EPES signed property creation with explicitly TEST policy bytes.
+        // No official policy hash is assumed; the example cannot issue invoices.
+        var testPolicy = System.Text.Encoding.UTF8.GetBytes("DEVELOPMENT POLICY - NOT HACIENDA");
+        const string testPolicyUrl = "https://example.invalid/test-policy.pdf";
+        var signedProperties = XadesPolicyDevelopmentFixture.BuildSignedProperties(
+            publicCertificate, "test-signature-1", testPolicyUrl,
+            XadesPolicyDevelopmentFixture.HashPolicy(testPolicy),
+            DateTimeOffset.UtcNow.ToUniversalTime());
+        Check(signedProperties.Name.LocalName == "SignedProperties",
+            "XAdES development properties have expected element name");
+        Check(signedProperties.Attribute("Id")?.Value == "SignedProperties-test-signature-1",
+            "XAdES development properties expose XML reference ID");
+        Check(XadesPolicyDevelopmentFixture.VerifyPolicyBinding(
+            signedProperties, testPolicyUrl, testPolicy, publicCertificate),
+            "Policy URL, SHA-256 digest and signer certificate digest match");
+        Check(!XadesPolicyDevelopmentFixture.VerifyPolicyBinding(
+            signedProperties, testPolicyUrl,
+            System.Text.Encoding.UTF8.GetBytes("modified-policy"), publicCertificate),
+            "Changing policy document bytes invalidates metadata binding");
+        MustThrow<ArgumentException>(() => XadesPolicyDevelopmentFixture.BuildSignedProperties(
+            publicCertificate, "test-signature-2", "http://insecure.invalid/policy",
+            XadesPolicyDevelopmentFixture.HashPolicy(testPolicy), DateTimeOffset.UtcNow),
+            "Reject non-HTTPS policy URL");
+        MustThrow<ArgumentException>(() => XadesPolicyDevelopmentFixture.BuildSignedProperties(
+            publicCertificate, "test-signature-3", testPolicyUrl, "aW52YWxpZA==", DateTimeOffset.UtcNow),
+            "Reject incorrectly sized policy hash");
+
 
         var tamperedXml = signedXml.Replace("Café", "Cafe", StringComparison.Ordinal);
         Check(tamperedXml != signedXml &&
