@@ -70,6 +70,7 @@ public static class FiscalXml44PreviewService
                 new XElement(Ns + "PrecioUnitario", Amount(line.PrecioUnitario)),
                 new XElement(Ns + "MontoTotal", Amount(line.Subtotal)),
                 new XElement(Ns + "SubTotal", Amount(line.Subtotal)),
+                new XElement(Ns + "BaseImponible", Amount(line.Subtotal)),
                 new XElement(Ns + "Impuesto",
                     new XElement(Ns + "Codigo", "01"),
                     new XElement(Ns + "CodigoTarifaIVA", "08"),
