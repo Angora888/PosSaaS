@@ -107,6 +107,33 @@ Check(FiscalSalePreflight.Check(sale, issuer, products).Any(x => x.Contains("sub
     "Mismatched line total is detected");
 sale.Detalles.First().Total = 113m;
 
+// Experimental v4.4 shape check (NOT an XSD acceptance test).
+var previewIssuer = new FiscalConfiguration {
+    RazonSocial = "Negocio de Prueba", TipoIdentificacion = "02",
+    Identificacion = "3101123456", ActividadEconomica = "620100",
+    Provincia = "2", Canton = "01", Distrito = "01",
+    OtrasSenas = "Dirección de prueba", Correo = "prueba@example.com"
+};
+var previewCustomer = new Cliente {
+    Nombre = "Cliente de prueba", Identificacion = "2100042005", TipoIdentificacion = "02"
+};
+var previewDate = new DateTimeOffset(2026, 11, 10, 13, 0, 0, TimeSpan.FromHours(-6));
+var previewXml = FiscalXml44PreviewService.Generate(sale, previewIssuer, previewCustomer,
+    products, "3101123456", consecutivo,
+    FiscalNumbering.Clave(previewDate, "3101123456", consecutivo, codigoSeguridad: "00000000"),
+    previewDate);
+var previewDoc = XDocument.Parse(previewXml);
+Check(previewDoc.Root?.Name.NamespaceName ==
+    "https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/facturaElectronica",
+    "v4.4 preview uses official FE namespace");
+Check(previewDoc.Root?.Element(previewDoc.Root.Name.Namespace + "ProveedorSistemas")?.Value == "3101123456",
+    "v4.4 preview includes explicit provider ID");
+Check(previewDoc.Root?.Descendants(previewDoc.Root.Name.Namespace + "CodigoCABYS").Count() == 1,
+    "v4.4 preview includes CABYS per line");
+MustThrow<ArgumentException>(() => FiscalXml44PreviewService.Generate(sale, previewIssuer,
+    previewCustomer, products, "", consecutivo, clave, previewDate),
+    "Unconfigured software provider must be rejected");
+
 sale.Detalles.Clear();
 MustThrow<InvalidOperationException>(() => FiscalXmlDraftService.Generate(sale, null, null, products),
     "Empty sale rejected");
