@@ -88,6 +88,7 @@ public static class FiscalXml44PreviewService
                     new XElement(Ns + "CodigoTarifaIVA", "08"),
                     new XElement(Ns + "Tarifa", Amount(13m)),
                     new XElement(Ns + "Monto", Amount(line.Impuesto))),
+                new XElement(Ns + "ImpuestoAsumidoEmisorFabrica", Amount(0m)),
                 new XElement(Ns + "ImpuestoNeto", Amount(line.Impuesto)),
                 new XElement(Ns + "MontoTotalLinea", Amount(line.Total))));
         }
