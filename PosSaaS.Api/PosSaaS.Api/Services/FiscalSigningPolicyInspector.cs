@@ -34,6 +34,8 @@ public sealed class FiscalSigningPolicyInspector
             !Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             uri.Scheme != Uri.UriSchemeHttps ||
             uri.UserInfo.Length > 0 ||
+            !uri.AbsolutePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ||
+            url.Contains("URLXXXX", StringComparison.OrdinalIgnoreCase) ||
             uri.Host is not ("hacienda.go.cr" or "www.hacienda.go.cr"))
             return new(false, "Se necesita una URL HTTPS oficial de Hacienda, verificada por el administrador.");
 
