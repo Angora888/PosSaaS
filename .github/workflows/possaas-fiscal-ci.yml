@@ -23,7 +23,14 @@ jobs:
         run: dotnet restore PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj
       - name: Compile API
         run: dotnet build PosSaaS.Api/PosSaaS.Api/PosSaaS.Api.csproj --configuration Release --no-restore
+      - name: Restore verified fiscal schema cache
+        id: schema-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: PosSaaS.Api/PosSaaS.Api/FiscalSchemas/v4.4/*.xsd
+          key: possaas-fiscal-v44-d384afef-cda1c7dd-w3c-v1
       - name: Try installing SHA-256 verified Hacienda XSD 4.4
+        if: steps.schema-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           if bash scripts/install-hacienda-xsd.sh && bash scripts/install-xmldsig-schema.sh; then
@@ -34,21 +41,35 @@ jobs:
       - name: Fiscal smoke checks
         run: dotnet run --project tests/PosSaaS.FiscalSmoke/PosSaaS.FiscalSmoke.csproj --configuration Release
   official-xsd-availability:
-    # External Hacienda downloads must not hide compile/test results.
-    # This is a diagnostic, not evidence that XSD is published in Azure.
+    # Download-and-cache only after ALL official XSD + W3C dependencies succeed.
+    # This is a diagnostic and never enables issuance.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Probe official 4.4 XSD download
+      - name: Restore pinned fiscal schema cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: PosSaaS.Api/PosSaaS.Api/FiscalSchemas/v4.4/*.xsd
+          key: possaas-fiscal-v44-d384afef-cda1c7dd-w3c-v1
+      - name: Download and verify all fiscal schemas
+        id: download
+        if: steps.cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          set -euo pipefail
-          if bash scripts/install-hacienda-xsd.sh; then
-            echo "Official Hacienda XSD download and basic structure check: OK" >> "$GITHUB_STEP_SUMMARY"
+          if bash scripts/install-hacienda-xsd.sh && bash scripts/install-xmldsig-schema.sh; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+            echo "Official Hacienda XSD + W3C dependency installed." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Hacienda XSD could not be downloaded or verified; no emission enabled." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            echo "Hacienda or W3C not available; no fiscal schema cache created." >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Cache verified official schemas
+        if: steps.download.outputs.installed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: PosSaaS.Api/PosSaaS.Api/FiscalSchemas/v4.4/*.xsd
+          key: possaas-fiscal-v44-d384afef-cda1c7dd-w3c-v1
 
   frontend:
     runs-on: ubuntu-latest
