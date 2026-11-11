@@ -33,6 +33,10 @@ function FiscalSettings() {
   const [consultando, setConsultando] = useState(false);
   const [errorDiagnostico, setErrorDiagnostico] = useState("");
   const [xmlDraft, setXmlDraft] = useState("");
+  const [xmlV44, setXmlV44] = useState("");
+  const [cargandoV44, setCargandoV44] = useState(false);
+  const [errorV44, setErrorV44] = useState("");
+  const [detalleV44, setDetalleV44] = useState("");
   const [cargandoXml, setCargandoXml] = useState(false);
   const [estadoXsd, setEstadoXsd] = useState(null);
   const [sucursales, setSucursales] = useState([]);
@@ -201,6 +205,9 @@ function FiscalSettings() {
     setErrorDiagnostico("");
     setDiagnostico(null);
     setXmlDraft("");
+    setXmlV44("");
+    setErrorV44("");
+    setDetalleV44("");
     try {
       const response = await api.get(`/fiscal/diagnostics/sale/${ventaId.trim()}`);
       setDiagnostico(response.data);
@@ -271,6 +278,29 @@ function FiscalSettings() {
       setErrorDiagnostico(data?.mensaje || "No se pudo crear el borrador XML.");
     } finally {
       setCargandoXml(false);
+    }
+  };
+
+  const generarPreviewV44 = async () => {
+    if (!diagnostico?.ventaId) return;
+    setCargandoV44(true);
+    setXmlV44("");
+    setErrorV44("");
+    setDetalleV44("");
+    try {
+      const { data } = await api.get(
+        `/fiscal/diagnostics/sale/${diagnostico.ventaId}/xml-v44-preview`);
+      setXmlV44(data.xml || "");
+      setDetalleV44(data.advertencia || "Vista previa no firmada ni transmitible.");
+    } catch (err) {
+      const data = err.response?.data;
+      setErrorV44(data?.mensaje || "No se pudo generar la vista previa XML 4.4.");
+      if (Array.isArray(data?.erroresXsd))
+        setDetalleV44(data.erroresXsd.slice(0, 10).join(" | "));
+      else if (Array.isArray(data?.observaciones))
+        setDetalleV44(data.observaciones.slice(0, 10).join(" | "));
+    } finally {
+      setCargandoV44(false);
     }
   };
 
@@ -421,10 +451,27 @@ function FiscalSettings() {
             </button>
           </form>
           {errorDiagnostico && <div className="alert alert-danger mt-3">{errorDiagnostico}</div>}
-          {diagnostico && <button type="button" className="btn btn-outline-secondary mt-3"
-            onClick={generarBorradorXml} disabled={cargandoXml}>
-            {cargandoXml ? "Generando borrador..." : "Ver borrador XML interno"}
-          </button>}
+          {diagnostico && <div className="d-flex flex-wrap gap-2 mt-3">
+            <button type="button" className="btn btn-outline-secondary"
+              onClick={generarBorradorXml} disabled={cargandoXml}>
+              {cargandoXml ? "Generando borrador..." : "Ver borrador XML interno"}
+            </button>
+            <button type="button" className="btn btn-outline-dark"
+              onClick={generarPreviewV44} disabled={cargandoV44}>
+              {cargandoV44 ? "Validando XSD..." : "Probar estructura XML 4.4 (sin firma)"}
+            </button>
+          </div>}
+          {errorV44 && <div className="alert alert-warning mt-3" role="alert">
+            <strong>No se pudo verificar el XML 4.4:</strong> {errorV44}
+            {detalleV44 && <div className="small mt-2 text-break">{detalleV44}</div>}
+          </div>}
+          {xmlV44 && <div className="mt-3">
+            <p className="text-warning-emphasis fw-semibold mb-2">
+              Estructura 4.4 previa a la firma. No es un comprobante válido: la clave y el consecutivo son simulados.
+            </p>
+            {detalleV44 && <p className="small text-secondary">{detalleV44}</p>}
+            <pre className="bg-light border rounded p-3 overflow-auto" style={{ maxHeight: 320, fontSize: "0.75rem" }}>{xmlV44}</pre>
+          </div>}
           {xmlDraft && <div className="mt-3">
             <p className="text-danger fw-semibold mb-2">Borrador interno sin validez fiscal. No corresponde al XSD 4.4 ni debe enviarse a Hacienda.</p>
             <pre className="bg-light border rounded p-3 overflow-auto" style={{ maxHeight: 300, fontSize: "0.75rem" }}>{xmlDraft}</pre>
