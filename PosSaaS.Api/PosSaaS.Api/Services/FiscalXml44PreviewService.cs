@@ -19,6 +19,18 @@ public static class FiscalXml44PreviewService
     private static string Quantity(decimal value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);
 
+    // The official schema requires ds:Signature. An unsigned document is NOT
+    // schema-valid, but it may be structurally ready to sign if this is the
+    // ONLY XSD error. Do not mistake this for a valid fiscal document.
+    public static bool SoloFaltaFirma(IReadOnlyList<string> errors) =>
+        errors.Count == 1 &&
+        errors[0].Contains("FacturaElectronica", StringComparison.OrdinalIgnoreCase) &&
+        errors[0].Contains("Signature", StringComparison.OrdinalIgnoreCase) &&
+        (errors[0].Contains("incomplete content", StringComparison.OrdinalIgnoreCase) ||
+         errors[0].Contains("contenido incompleto", StringComparison.OrdinalIgnoreCase));
+
+
+
     public static string Generate(
         Venta sale, FiscalConfiguration issuer, Cliente receiver,
         IReadOnlyDictionary<int, Producto> products, string providerId,
