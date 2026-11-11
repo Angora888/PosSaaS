@@ -23,7 +23,7 @@ public sealed class FiscalSchemaValidator
         var filename = SchemaFilename(type);
         if (filename is null) return false;
         var path = SchemaPath(filename);
-        if (!File.Exists(path)) return false;
+        if (!File.Exists(path) || !File.Exists(SchemaPath("xmldsig-core-schema.xsd"))) return false;
 
         // "Disponible" requires a readable XSD 4.4 root, not merely a file
         // with an .xsd extension (for example an HTML error response).
@@ -74,6 +74,13 @@ public sealed class FiscalSchemaValidator
         // If the official XSD needs external dependencies, installation must
         // include and review them rather than downloading them on user requests.
         settings.Schemas.XmlResolver = null;
+        using (var signatureReader = XmlReader.Create(
+            SchemaPath("xmldsig-core-schema.xsd"), new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            }))
+            settings.Schemas.Add("http://www.w3.org/2000/09/xmldsig#", signatureReader);
         using (var schemaReader = XmlReader.Create(schemaPath, new XmlReaderSettings
         {
             DtdProcessing = DtdProcessing.Prohibit,
