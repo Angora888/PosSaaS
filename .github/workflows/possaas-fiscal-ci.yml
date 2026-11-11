@@ -26,7 +26,7 @@ jobs:
       - name: Try installing SHA-256 verified Hacienda XSD 4.4
         shell: bash
         run: |
-          if bash scripts/install-hacienda-xsd.sh; then
+          if bash scripts/install-hacienda-xsd.sh && bash scripts/install-xmldsig-schema.sh; then
             echo "Official 4.4 XSD downloaded and verified." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "XSD currently unavailable: preview validation remains disabled. Build proceeds safely." >> "$GITHUB_STEP_SUMMARY"
