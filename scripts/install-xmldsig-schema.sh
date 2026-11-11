@@ -19,7 +19,10 @@ raw_path, output_path = map(pathlib.Path, sys.argv[1:])
 data = raw_path.read_bytes()
 if len(data) > 256000:
     raise SystemExit("Unexpectedly large W3C signature schema")
-print("W3C XMLDSIG source SHA-256:", hashlib.sha256(data).hexdigest())
+fingerprint = hashlib.sha256(data).hexdigest()
+if fingerprint != "35cf8197da812c85e40d57891b35c94187569ed474a2dac813ce5090dafcd35c":
+    raise SystemExit("W3C XMLDSIG schema fingerprint changed. Review before install.")
+print("Verified W3C XMLDSIG source SHA-256:", fingerprint)
 source = data.decode("utf-8-sig")
 # The W3C schema's internal DOCTYPE declares an entity for the namespace.
 # Strip only that trusted fixed W3C DTD block for secure offline XmlReader parsing.
