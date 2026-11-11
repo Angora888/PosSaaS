@@ -19,12 +19,15 @@ public sealed class FiscalReadinessController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ITenantContext _tenant;
     private readonly FiscalSchemaValidator _schema;
+    private readonly FiscalSigningPolicyInspector _policy;
 
-    public FiscalReadinessController(AppDbContext db, ITenantContext tenant, FiscalSchemaValidator schema)
+    public FiscalReadinessController(AppDbContext db, ITenantContext tenant,
+        FiscalSchemaValidator schema, FiscalSigningPolicyInspector policy)
     {
         _db = db;
         _tenant = tenant;
         _schema = schema;
+        _policy = policy;
     }
 
     [HttpGet]
@@ -87,8 +90,10 @@ public sealed class FiscalReadinessController : ControllerBase
                 "Debe estar instalado y verificado en la API. Disponer del archivo no garantiza un XML válido."),
             new Step("xmlFiscal", "Generador fiscal 4.4 y validación real", false,
                 "Solo existe un borrador XML interno, no un comprobante fiscal."),
+            new Step("politicaFirma", "Política de firma XAdES-EPES 4.4", _policy.Inspect().ArchivoVerificado,
+                _policy.Inspect().Detalle),
             new Step("firma", "Certificado y firma XAdES-EPES", false,
-                "Aún no se implementa la firma fiscal."),
+                "Aún no se implementa la firma fiscal. Las pruebas usan certificados ficticios."),
             new Step("hacienda", "Autenticación, envío y respuesta de Hacienda", false,
                 "Aún no se implementa el flujo de recepción ni consulta de resultados.")
         };
