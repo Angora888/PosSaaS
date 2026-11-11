@@ -236,6 +236,45 @@ if (File.Exists(xsdFile))
         Check(signedXsdIssues.Count == 0,
             "Signed test XML passes Hacienda 4.4 XSD shape: " +
             string.Join(" | ", signedXsdIssues.Take(10)));
+        // Development-only XAdES-EPES fixture: the policy is intentionally NOT Hacienda.
+        // Two references must cryptographically cover the document and SignedProperties.
+        var demoPolicyBytes = System.Text.Encoding.UTF8.GetBytes("LOCAL TEST POLICY ONLY");
+        const string demoPolicyUri = "https://example.invalid/development-policy.pdf";
+        var (signedXadesXml, xadesPublicCert) =
+            XadesSignedDevelopmentFixture.Sign(previewXml, demoPolicyBytes, demoPolicyUri);
+        using (xadesPublicCert)
+        {
+            Check(XadesSignedDevelopmentFixture.Verify(signedXadesXml, xadesPublicCert,
+                demoPolicyUri, demoPolicyBytes),
+                "XAdES development signature verifies both document and SignedProperties");
+            var changedAmount = signedXadesXml.Replace("Café", "Cafe", StringComparison.Ordinal);
+            Check(changedAmount != signedXadesXml &&
+                !XadesSignedDevelopmentFixture.Verify(changedAmount, xadesPublicCert,
+                    demoPolicyUri, demoPolicyBytes),
+                "XAdES development signature rejects tampered invoice");
+            var changedPolicy = signedXadesXml.Replace(demoPolicyUri,
+                "https://example.invalid/modified.pdf", StringComparison.Ordinal);
+            Check(changedPolicy != signedXadesXml &&
+                !XadesSignedDevelopmentFixture.Verify(changedPolicy, xadesPublicCert,
+                    demoPolicyUri, demoPolicyBytes),
+                "XAdES development signature rejects altered signed policy URL");
+            Check(!XadesSignedDevelopmentFixture.Verify(signedXadesXml, xadesPublicCert,
+                demoPolicyUri, System.Text.Encoding.UTF8.GetBytes("different policy")),
+                "XAdES policy bytes must match independent expected policy");
+            var xadesIssues = new List<string>();
+            var xadesSettings = new XmlReaderSettings {
+                DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null,
+                ValidationType = ValidationType.Schema,
+                ValidationFlags = XmlSchemaValidationFlags.ReportValidationWarnings
+            };
+            xadesSettings.Schemas.Add(schemas);
+            xadesSettings.ValidationEventHandler += (_, e) => xadesIssues.Add(e.Message);
+            using (var xadesReader = XmlReader.Create(new StringReader(signedXadesXml), xadesSettings))
+                while (xadesReader.Read()) { }
+            Check(xadesIssues.Count == 0, "XAdES development XML retains valid 4.4 XSD: " +
+                string.Join(" | ", xadesIssues.Take(8)));
+        }
+
     }
 
 
