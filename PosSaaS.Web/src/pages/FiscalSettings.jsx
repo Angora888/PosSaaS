@@ -47,6 +47,11 @@ function FiscalSettings() {
   const [cargandoDistritos, setCargandoDistritos] = useState(false);
   const [errorUbicacion, setErrorUbicacion] = useState("");
   const [ubicacionManual, setUbicacionManual] = useState(false);
+  const [consultandoEmisor, setConsultandoEmisor] = useState(false);
+  const [errorEmisor, setErrorEmisor] = useState("");
+  const [mensajeEmisor, setMensajeEmisor] = useState("");
+  const [actividadesEmisor, setActividadesEmisor] = useState([]);
+  const [cedulaConsultada, setCedulaConsultada] = useState("");
 
   useEffect(() => {
     let activo = true;
@@ -141,6 +146,47 @@ function FiscalSettings() {
       {ayuda && <small className="text-secondary">{ayuda}</small>}
     </div>
   );
+
+  const consultarEmisor = async () => {
+    const identificacion = datos.identificacion.trim().replace(/[\\s-]/g, "");
+    setErrorEmisor("");
+    setMensajeEmisor("");
+    setActividadesEmisor([]);
+    setCedulaConsultada("");
+    if (!/^[0-9]{9,12}$/.test(identificacion)) {
+      setErrorEmisor("Ingresá una cédula de 9 a 12 dígitos antes de consultar Hacienda.");
+      return;
+    }
+    setConsultandoEmisor(true);
+    try {
+      const { data } = await api.get("/hacienda/contribuyente", {
+        params: { identificacion },
+      });
+      const actividades = Array.isArray(data.actividades) ? data.actividades : [];
+      // Do not silently replace a saved activity: user chooses from Hacienda.
+      setDatos(actual => {
+        if (actual.identificacion.trim().replace(/[\\s-]/g, "") !== identificacion) return actual;
+        return {
+          ...actual,
+          identificacion: data.identificacion || identificacion,
+          razonSocial: data.nombre || actual.razonSocial,
+          tipoIdentificacion: data.tipoIdentificacion || actual.tipoIdentificacion,
+        };
+      });
+      setCedulaConsultada(identificacion);
+      setActividadesEmisor(actividades);
+      setMensajeEmisor(actividades.length
+        ? "Datos encontrados. Seleccioná una actividad registrada y guardá la configuración."
+        : "Datos encontrados. No hay actividades disponibles en esta respuesta; podés ingresar el código manualmente.");
+    } catch (err) {
+      const d = err.response?.data;
+      setErrorEmisor(d?.mensaje || (err.response?.status === 404
+        ? "No se encontró el contribuyente o la API no tiene el endpoint actualizado."
+        : "No se pudo consultar Hacienda. Podés completar los datos manualmente."));
+    } finally {
+      setConsultandoEmisor(false);
+    }
+  };
 
   const diagnosticarVenta = async (e) => {
     e.preventDefault();
@@ -338,6 +384,31 @@ function FiscalSettings() {
           <div className="card-body p-4">
             <h5 className="fw-bold mb-3">Datos del emisor</h5>
             <div className="row g-3">
+              <div className="col-md-6">
+                <label htmlFor="identificacion" className="form-label fw-semibold">Número de identificación</label>
+                <input id="identificacion" className="form-control" type="text" inputMode="numeric"
+                  value={datos.identificacion} required disabled={guardando || consultandoEmisor}
+                  placeholder="Cédula física o jurídica"
+                  onChange={e => {
+                    setDatos(v => ({ ...v, identificacion: e.target.value }));
+                    setActividadesEmisor([]);
+                    setCedulaConsultada("");
+                    setMensajeEmisor("");
+                    setErrorEmisor("");
+                  }} />
+              </div>
+              <div className="col-md-6 d-flex align-items-end">
+                <button type="button" className="btn btn-outline-primary w-100" onClick={consultarEmisor}
+                  disabled={guardando || consultandoEmisor || !datos.identificacion.trim()}>
+                  {consultandoEmisor
+                    ? <><span className="spinner-border spinner-border-sm me-2" />Consultando Hacienda...</>
+                    : <><i className="bi bi-search me-2" />Consultar Hacienda</>}
+                </button>
+              </div>
+              {(mensajeEmisor || errorEmisor) && <div className="col-12">
+                {mensajeEmisor && <div role="status" className="alert alert-success mb-0">{mensajeEmisor}</div>}
+                {errorEmisor && <div role="alert" className="alert alert-warning mb-0">{errorEmisor}</div>}
+              </div>}
               {campo("razonSocial", "Razón social", "text", true)}
               <div className="col-md-6">
                 <label htmlFor="tipoIdentificacion" className="form-label fw-semibold">Tipo de identificación</label>
@@ -347,8 +418,25 @@ function FiscalSettings() {
                   <option value="03">DIMEX</option><option value="04">NITE</option>
                 </select>
               </div>
-              {campo("identificacion", "Número de identificación", "text", true)}
-              {campo("actividadEconomica", "Código de actividad económica", "text", false, "Según el registro tributario del contribuyente.")}
+              {cedulaConsultada && actividadesEmisor.length > 0 && <div className="col-12">
+                <label htmlFor="actividadesEmisor" className="form-label fw-semibold">
+                  Actividades económicas registradas en Hacienda
+                </label>
+                <select id="actividadesEmisor" className="form-select"
+                  value={actividadesEmisor.some(a => a.codigo === datos.actividadEconomica) ? datos.actividadEconomica : ""}
+                  disabled={guardando}
+                  onChange={e => setDatos(v => ({ ...v, actividadEconomica: e.target.value }))}>
+                  <option value="">Elegí la actividad que corresponde al negocio</option>
+                  {actividadesEmisor.map((a, i) =>
+                    <option key={a.codigo + i} value={a.codigo}>
+                      {a.codigo} · {a.descripcion}{a.estado === "A" ? " (activa)" : a.estado ? " (estado: " + a.estado + ")" : ""}
+                    </option>)}
+                </select>
+                <div className="small text-secondary mt-1">
+                  Elegí una actividad acorde con lo que vende el negocio. Consultar no modifica la configuración hasta guardar.
+                </div>
+              </div>}
+              {campo("actividadEconomica", "Código de actividad económica", "text", false, "Se puede elegir de Hacienda o ingresar manualmente; verificá el código antes de emitir.")}
               {campo("correo", "Correo para comprobantes", "email", true)}
               {campo("telefono", "Teléfono")}
               <div className="col-12">
