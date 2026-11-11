@@ -11,7 +11,7 @@ mkdir -p "${DEST}"
 for name in FacturaElectronica_V4.4.xsd TiqueteElectronico_V4.4.xsd; do
   tmp="${DEST}/.${name}.part"
   echo "Descargando ${name} desde Hacienda..."
-  curl --fail --location --retry 3 --connect-timeout 15 --max-time 90 --silent --show-error     "${BASE}/${name}" --output "${tmp}"
+  curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 120 --silent --show-error     "${BASE}/${name}" --output "${tmp}"
   python3 - "${tmp}" "${name}" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
