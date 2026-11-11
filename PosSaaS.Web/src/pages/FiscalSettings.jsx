@@ -148,7 +148,7 @@ function FiscalSettings() {
   );
 
   const consultarEmisor = async () => {
-    const identificacion = datos.identificacion.trim().replace(/[\\s-]/g, "");
+    const identificacion = datos.identificacion.trim().replace(/[\s-]/g, "");
     setErrorEmisor("");
     setMensajeEmisor("");
     setActividadesEmisor([]);
@@ -165,7 +165,7 @@ function FiscalSettings() {
       const actividades = Array.isArray(data.actividades) ? data.actividades : [];
       // Do not silently replace a saved activity: user chooses from Hacienda.
       setDatos(actual => {
-        if (actual.identificacion.trim().replace(/[\\s-]/g, "") !== identificacion) return actual;
+        if (actual.identificacion.trim().replace(/[\s-]/g, "") !== identificacion) return actual;
         return {
           ...actual,
           identificacion: data.identificacion || identificacion,
