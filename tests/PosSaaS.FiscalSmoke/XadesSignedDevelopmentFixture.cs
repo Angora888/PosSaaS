@@ -125,13 +125,18 @@ internal static class XadesSignedDevelopmentFixture
                     if (child.GetAttribute("Id") == idValue)
                         matches.Add(child);
             }
-            // While computing, the XML signature isn't attached to the doc yet.
-            foreach (DataObject obj in Signature.ObjectList)
+            // Signing-time objects are not yet in the document. When verifying,
+            // SignedXml.LoadXml has already loaded the same object from the
+            // document; counting both copies would falsely flag ambiguity.
+            if (matches.Count == 0)
             {
-                var objectElement = obj.GetXml();
-                foreach (XmlElement child in objectElement.GetElementsByTagName("SignedProperties", XadesNamespace))
-                    if (child.GetAttribute("Id") == idValue)
-                        matches.Add(child);
+                foreach (DataObject obj in Signature.ObjectList)
+                {
+                    var objectElement = obj.GetXml();
+                    foreach (XmlElement child in objectElement.GetElementsByTagName("SignedProperties", XadesNamespace))
+                        if (child.GetAttribute("Id") == idValue)
+                            matches.Add(child);
+                }
             }
             if (matches.Count != 1)
                 throw new CryptographicException("Missing or ambiguous SignedProperties reference.");
